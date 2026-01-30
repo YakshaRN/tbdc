@@ -39,33 +39,60 @@ class UserService:
     def _get_client(self):
         """Get or create DynamoDB client."""
         if self._client is None:
-            self._client = boto3.client(
-                "dynamodb",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
-            )
+            # If explicit credentials are provided, use them
+            # Otherwise, boto3 will use IAM role credentials automatically
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                self._client = boto3.client(
+                    "dynamodb",
+                    region_name=settings.AWS_REGION,
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                )
+            else:
+                # Use default credential chain (IAM role, env vars, etc.)
+                self._client = boto3.client(
+                    "dynamodb",
+                    region_name=settings.AWS_REGION,
+                )
         return self._client
     
     def _get_table(self):
         """Get or create DynamoDB table resource."""
         if self._table is None:
-            dynamodb = boto3.resource(
-                "dynamodb",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
-            )
+            # If explicit credentials are provided, use them
+            # Otherwise, boto3 will use IAM role credentials automatically
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                dynamodb = boto3.resource(
+                    "dynamodb",
+                    region_name=settings.AWS_REGION,
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                )
+            else:
+                # Use default credential chain (IAM role, env vars, etc.)
+                dynamodb = boto3.resource(
+                    "dynamodb",
+                    region_name=settings.AWS_REGION,
+                )
             self._table = dynamodb.Table(self.TABLE_NAME)
         return self._table
     
     @property
     def is_enabled(self) -> bool:
-        """Check if DynamoDB is configured."""
-        return (
-            bool(settings.AWS_ACCESS_KEY_ID)
-            and bool(settings.AWS_SECRET_ACCESS_KEY)
-        )
+        """Check if DynamoDB is available (via credentials or IAM role)."""
+        # Cache the result after first successful check
+        if hasattr(self, '_is_enabled_cached'):
+            return self._is_enabled_cached
+        
+        # Try to verify DynamoDB access
+        try:
+            self._get_client().list_tables(Limit=1)
+            self._is_enabled_cached = True
+            return True
+        except Exception as e:
+            logger.warning(f"DynamoDB not available: {e}")
+            self._is_enabled_cached = False
+            return False
     
     def ensure_table_exists(self) -> bool:
         """Create the users table if it doesn't exist."""

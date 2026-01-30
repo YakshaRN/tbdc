@@ -158,75 +158,122 @@ export function LeadDetail({
       <div className="p-6 grid grid-cols-12 gap-6">
         {/* Summary Section - Spans 8 columns */}
         <div className="col-span-8 space-y-6">
-          {/* Summary Card - Uses analysis data when available */}
-          <DetailCard title="Summary" icon={Layers}>
-            {isAnalysisLoading ? (
-              <div className="space-y-4">
-                {/* Summary text skeleton */}
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <div className="h-4 bg-gray-200 rounded w-full skeleton mb-2" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4 skeleton" />
+          {/* Summary Card - Modern redesign */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            {/* Header with gradient */}
+            <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-white/20 backdrop-blur">
+                  <Layers className="w-5 h-5 text-white" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
-                      <div className="w-10 h-10 rounded-lg bg-gray-200 skeleton" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3 bg-gray-200 rounded w-16 skeleton" />
-                        <div className="h-4 bg-gray-200 rounded w-24 skeleton" />
+                <div>
+                  <h3 className="font-semibold text-white text-lg">Company Overview</h3>
+                  <p className="text-emerald-100 text-xs">AI-powered analysis</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {isAnalysisLoading ? (
+                <div className="space-y-6">
+                  {/* Summary skeleton */}
+                  <div className="space-y-2">
+                    <div className="h-5 bg-gray-200 rounded w-full skeleton" />
+                    <div className="h-5 bg-gray-200 rounded w-4/5 skeleton" />
+                    <div className="h-5 bg-gray-200 rounded w-3/5 skeleton" />
+                  </div>
+                  {/* Tags skeleton */}
+                  <div className="flex flex-wrap gap-2">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="h-8 bg-gray-100 rounded-full w-24 skeleton" />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* AI Summary - Hero section */}
+                  {analysis?.summary && (
+                    <div className="relative">
+                      <div className="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-400 to-teal-400 rounded-full" />
+                      <p className="text-gray-700 leading-relaxed pl-3 text-[15px]">
+                        {analysis.summary}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Product Description */}
+                  {analysis?.product_description && analysis.product_description !== "Unclear from site" && (
+                    <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-gray-100">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white shrink-0">
+                          <Lightbulb className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Product</p>
+                          <p className="text-sm text-gray-800 font-medium">{analysis.product_description}</p>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* AI-generated Summary */}
-                {analysis?.summary && (
-                  <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
-                    <p className="text-sm text-gray-700 leading-relaxed">{analysis.summary}</p>
+                  )}
+
+                  {/* Company Tags - Pill style */}
+                  <div className="flex flex-wrap gap-2">
+                    <CompanyTag 
+                      label="Country" 
+                      value={analysis?.country || lead.Country} 
+                      colorClass="bg-blue-50 text-blue-700 border-blue-200"
+                      icon={MapPin}
+                    />
+                    <CompanyTag 
+                      label="Stage" 
+                      value={analysis?.raise_stage || lead.Raise} 
+                      colorClass="bg-amber-50 text-amber-700 border-amber-200"
+                      icon={TrendingUp}
+                    />
+                    <CompanyTag 
+                      label="Vertical" 
+                      value={analysis?.vertical || lead.Verticle || lead.Industry} 
+                      colorClass="bg-purple-50 text-purple-700 border-purple-200"
+                      icon={Layers}
+                    />
+                    <CompanyTag 
+                      label="Model" 
+                      value={analysis?.business_model || lead.Business_Model} 
+                      colorClass="bg-emerald-50 text-emerald-700 border-emerald-200"
+                      icon={Briefcase}
+                    />
+                    <CompanyTag 
+                      label="Motion" 
+                      value={analysis?.motion} 
+                      colorClass="bg-cyan-50 text-cyan-700 border-cyan-200"
+                      icon={Zap}
+                    />
+                    <CompanyTag 
+                      label="Size" 
+                      value={analysis?.company_size} 
+                      colorClass="bg-rose-50 text-rose-700 border-rose-200"
+                      icon={Building2}
+                    />
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                <SummaryItem 
-                  label="Country" 
-                  value={analysis?.country || lead.Country} 
-                  icon={MapPin} 
-                />
-                <SummaryItem 
-                  label="Raise Stage" 
-                  value={analysis?.raise_stage || lead.Raise || lead.Industry} 
-                  icon={TrendingUp} 
-                />
-                <SummaryItem 
-                  label="Vertical" 
-                  value={analysis?.vertical || lead.Verticle || lead.Industry} 
-                  icon={Layers} 
-                />
-                <SummaryItem 
-                  label="Business Model" 
-                  value={analysis?.business_model || lead.Business_Model} 
-                  icon={Briefcase} 
-                />
-                <SummaryItem 
-                  label="Motion" 
-                  value={analysis?.motion} 
-                  icon={Zap} 
-                />
-                <SummaryItem 
-                  label="Company Size" 
-                  value={analysis?.company_size} 
-                  icon={Building2} 
-                />
-                <SummaryItem 
-                  label="Likely ICP Canada" 
-                  value={analysis?.likely_icp_canada} 
-                  icon={Target} 
-                />
-              </div>
-              </div>
-            )}
-          </DetailCard>
+
+                  {/* ICP Canada - Highlighted */}
+                  {analysis?.likely_icp_canada && (
+                    <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 rounded-xl border border-emerald-200">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white shrink-0">
+                          <Target className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Likely ICP in Canada</p>
+                          <p className="text-sm text-gray-800 font-medium">{analysis.likely_icp_canada}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Key Insights - Show loading or insights */}
           {(isAnalysisLoading || (analysis?.key_insights && analysis.key_insights.length > 0)) && (
@@ -585,6 +632,28 @@ function SummaryItem({ label, value, icon: Icon }: SummaryItemProps) {
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
         <p className="text-sm font-medium text-gray-900 mt-0.5">{value || "—"}</p>
       </div>
+    </div>
+  );
+}
+
+interface CompanyTagProps {
+  label: string;
+  value?: string | null;
+  colorClass: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+function CompanyTag({ label, value, colorClass, icon: Icon }: CompanyTagProps) {
+  if (!value) return null;
+  
+  return (
+    <div className={clsx(
+      "inline-flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-medium transition-all hover:scale-105",
+      colorClass
+    )}>
+      <Icon className="w-3.5 h-3.5" />
+      <span className="text-xs text-gray-500">{label}:</span>
+      <span>{value}</span>
     </div>
   );
 }

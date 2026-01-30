@@ -24,6 +24,12 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
+  const LEADS_PER_PAGE = 100;
+  
   // Website scraping state
   const [websiteData, setWebsiteData] = useState<WebsiteData | null>(null);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
@@ -38,7 +44,7 @@ export default function Dashboard() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  const fetchLeads = useCallback(async (showRefreshing = false) => {
+  const fetchLeads = useCallback(async (page: number = 1, showRefreshing = false) => {
     try {
       if (showRefreshing) {
         setIsRefreshing(true);
@@ -47,13 +53,18 @@ export default function Dashboard() {
       }
       setError(null);
 
-      // Backend fetches ALL LinkedIn Ads leads by default (fetch_all=true)
+      // Fetch leads with pagination (100 per page)
       const response = await leadsApi.getLeads({
+        page,
+        per_page: LEADS_PER_PAGE,
         sort_by: "Modified_Time",
         sort_order: "desc",
       });
 
       setLeads(response.data);
+      setCurrentPage(response.page);
+      setTotalCount(response.total_count);
+      setHasMoreRecords(response.more_records);
 
       // If we have a selected lead, update it with fresh data
       if (selectedLead) {
@@ -107,7 +118,23 @@ export default function Dashboard() {
   };
 
   const handleRefresh = () => {
-    fetchLeads(true);
+    fetchLeads(currentPage, true);
+  };
+
+  const handleNextPage = () => {
+    if (hasMoreRecords) {
+      fetchLeads(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      fetchLeads(currentPage - 1);
+    }
+  };
+
+  const handleGoToPage = (page: number) => {
+    fetchLeads(page);
   };
 
   const handleReevaluate = async () => {
@@ -252,6 +279,14 @@ export default function Dashboard() {
             isLoading={isLoading}
             onFetchUrl={handleFetchUrl}
             isFetchingUrl={isFetchingUrl}
+            // Pagination props
+            currentPage={currentPage}
+            totalCount={totalCount}
+            perPage={LEADS_PER_PAGE}
+            hasMoreRecords={hasMoreRecords}
+            onNextPage={handleNextPage}
+            onPrevPage={handlePrevPage}
+            onGoToPage={handleGoToPage}
           />
         </div>
 

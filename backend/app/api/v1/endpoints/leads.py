@@ -24,8 +24,8 @@ router = APIRouter()
 
 @router.get("/", response_model=LeadListResponse)
 async def list_leads(
-    page: int = Query(1, ge=1, description="Page number (ignored when fetch_all=true)"),
-    per_page: int = Query(50, ge=1, le=200, description="Records per page (ignored when fetch_all=true)"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(100, ge=1, le=200, description="Records per page (default 100)"),
     sort_by: Optional[str] = Query(None, description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     fields: Optional[str] = Query(
@@ -37,8 +37,8 @@ async def list_leads(
         description="Filter by lead source (e.g., 'LinkedIn Ads', 'Website', 'Referral')"
     ),
     fetch_all: bool = Query(
-        True,
-        description="If true, fetches ALL matching records (ignores pagination). Default is true for lead_source filter."
+        False,
+        description="If true, fetches ALL matching records (ignores pagination). Default is false to use pagination."
     ),
 ):
     """

@@ -1,7 +1,7 @@
 "use client";
 
 import { Lead } from "@/types/lead";
-import { Search, Building2, Mail, Phone, Globe, ChevronRight, Users, ExternalLink, Loader2 } from "lucide-react";
+import { Search, Building2, Mail, Phone, Globe, ChevronRight, Users, ExternalLink, Loader2, ChevronLeft } from "lucide-react";
 import clsx from "clsx";
 
 interface LeadListProps {
@@ -13,6 +13,14 @@ interface LeadListProps {
   isLoading?: boolean;
   onFetchUrl?: (url: string) => void;
   isFetchingUrl?: boolean;
+  // Pagination props
+  currentPage?: number;
+  totalCount?: number;
+  perPage?: number;
+  hasMoreRecords?: boolean;
+  onNextPage?: () => void;
+  onPrevPage?: () => void;
+  onGoToPage?: (page: number) => void;
 }
 
 // Helper to check if string looks like a URL
@@ -34,7 +42,15 @@ export function LeadList({
   isLoading = false,
   onFetchUrl,
   isFetchingUrl = false,
+  currentPage = 1,
+  totalCount = 0,
+  perPage = 100,
+  hasMoreRecords = false,
+  onNextPage,
+  onPrevPage,
+  onGoToPage,
 }: LeadListProps) {
+  const totalPages = Math.ceil(totalCount / perPage) || 1;
   const filteredLeads = leads.filter((lead) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
@@ -56,7 +72,13 @@ export function LeadList({
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Leads</h2>
-            <p className="text-xs text-gray-500">{leads.length} total leads</p>
+            <p className="text-xs text-gray-500">
+              {totalCount > 0 ? (
+                <>Showing {((currentPage - 1) * perPage) + 1}-{Math.min(currentPage * perPage, totalCount)} of {totalCount}</>
+              ) : (
+                <>{leads.length} leads</>
+              )}
+            </p>
           </div>
         </div>
         
@@ -157,6 +179,75 @@ export function LeadList({
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalCount > perPage && !searchQuery && (
+        <div className="border-t border-gray-200 bg-white p-3">
+          <div className="flex items-center justify-between">
+            {/* Previous Button */}
+            <button
+              onClick={onPrevPage}
+              disabled={currentPage <= 1 || isLoading}
+              className={clsx(
+                "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                currentPage <= 1 || isLoading
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              )}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Prev
+            </button>
+
+            {/* Page Info */}
+            <div className="flex items-center gap-1">
+              {/* Quick page buttons */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => onGoToPage?.(pageNum)}
+                    disabled={isLoading}
+                    className={clsx(
+                      "w-8 h-8 rounded-lg text-sm font-medium transition-all",
+                      currentPage === pageNum
+                        ? "bg-emerald-500 text-white"
+                        : "text-gray-600 hover:bg-gray-100"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={onNextPage}
+              disabled={!hasMoreRecords || isLoading}
+              className={clsx(
+                "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                !hasMoreRecords || isLoading
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              )}
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

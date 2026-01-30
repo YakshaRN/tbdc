@@ -37,7 +37,11 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configure CORS
+    # Add Zoho Token Management Middleware FIRST (runs second)
+    app.add_middleware(ZohoTokenMiddleware)
+
+    # Configure CORS LAST (runs first on incoming requests)
+    # In Starlette/FastAPI, middleware added last runs first
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -45,9 +49,6 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Add Zoho Token Management Middleware
-    app.add_middleware(ZohoTokenMiddleware)
 
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)

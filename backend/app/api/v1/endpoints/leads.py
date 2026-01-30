@@ -141,11 +141,11 @@ async def get_lead(
         if skip_analysis:
             # Return default analysis if explicitly skipped
             analysis = LeadAnalysis(
-                company_name=lead_data.get("Company", "Unknown"),
-                country=lead_data.get("Country", "Unknown"),
+                company_name=lead_data.get("Company") or "Unknown",
+                country=lead_data.get("Country") or "Unknown",
                 region="Unknown",
                 product_description="Analysis skipped",
-                vertical=lead_data.get("Industry", "Unknown"),
+                vertical=lead_data.get("Industry") or "Unknown",
                 business_model="Unknown",
                 motion="Unknown",
                 raise_stage="Unknown",
@@ -164,11 +164,11 @@ async def get_lead(
             # Bedrock not configured
             logger.warning("AWS Bedrock not configured, returning default analysis")
             analysis = LeadAnalysis(
-                company_name=lead_data.get("Company", "Unknown"),
-                country=lead_data.get("Country", "Unknown"),
+                company_name=lead_data.get("Company") or "Unknown",
+                country=lead_data.get("Country") or "Unknown",
                 region="Unknown",
                 product_description="Unable to analyze - LLM not configured",
-                vertical=lead_data.get("Industry", "Unknown"),
+                vertical=lead_data.get("Industry") or "Unknown",
                 business_model="Unknown",
                 motion="Unknown",
                 raise_stage="Unknown",

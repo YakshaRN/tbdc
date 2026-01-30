@@ -254,7 +254,15 @@ Respond ONLY with the JSON object and no additional text."""
         analysis_prompt_template = self.prompt_manager.get_analysis_prompt()
         system_prompt = self.prompt_manager.get_system_prompt()
         
-        prompt = analysis_prompt_template.format(lead_data=formatted_data)
+        # Safely format the prompt, handling any brace escaping issues
+        try:
+            prompt = analysis_prompt_template.format(lead_data=formatted_data)
+        except KeyError as e:
+            logger.warning(f"Prompt formatting error (resetting to defaults): {e}")
+            # Reset to defaults and try again
+            self.prompt_manager.reset_to_defaults()
+            analysis_prompt_template = self.prompt_manager.get_analysis_prompt()
+            prompt = analysis_prompt_template.format(lead_data=formatted_data)
         
         if attachment_text:
             logger.debug(f"Analyzing lead with LLM (including {len(attachment_text)} chars from attachments)...")

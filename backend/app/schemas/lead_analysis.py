@@ -18,6 +18,12 @@ class LeadAnalysis(BaseModel):
     country: str = Field(default="Unknown", description="Country where the company is based")
     region: str = Field(default="Unknown", description="Geographic region (e.g., North America, Europe, APAC)")
     
+    # Summary
+    summary: str = Field(
+        default="", 
+        description="Summary about company and its potential"
+    )
+    
     # Product & Business
     product_description: str = Field(
         default="Unknown", 

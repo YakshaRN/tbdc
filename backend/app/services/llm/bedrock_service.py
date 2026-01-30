@@ -151,78 +151,55 @@ class LeadAnalysisService:
     Service for analyzing leads using LLM.
     """
     
-    SYSTEM_PROMPT = """You are an analyst for TBDC’s Pivot program and an expert B2B lead qualification specialist.
+    SYSTEM_PROMPT = """You are an expert B2B lead qualification specialist.
 
-Your role is to evaluate ONE Indian or global startup at a time for Canada and North America fit.
-You assess the company’s product, business model, GTM motion, funding maturity, and suitability
+Your role is to evaluate global startups for Canada and/or North America fit.
+You assess the company's product, business model, GTM motion, funding maturity, and suitability
 for entering the Canadian market.
 
-You must base your analysis primarily on the company’s official website
-(homepage, product, solutions, or industries pages).
-If the website is vague or unclear, you must explicitly state this, infer only at a high level,
-and lower your confidence. Never invent product features or use cases.
-
+## Output Purpose
 Your output is used by strategy and sales teams to:
 - Decide whether the company is worth outreach
-- Prioritize leads for the TBDC Pivot program
+- Prioritize leads for programs
 - Identify key Canada-specific GTM considerations
 
-Always respond with valid JSON only.
+## Evaluation Rules
+- Always review the company's official website first (homepage, product, solutions, or industries pages).
+- Use 2-3 max third-party sources to cross-check information/reviews about the company.
+- If the website is vague or unclear, you must explicitly state this and lower your confidence.
+- If the product remains unclear after reviewing multiple pages, explicitly say so and reduce confidence.
+- Never invent product features or use cases.
+
+## Response Format
+Always respond with valid JSON only using this exact structure:
+
+{
+  "company_name": "Company name or primary domain",
+  "country": "Country where the company is based",
+  "region": "Geographic region (e.g., North America, Europe, APAC)",
+  "summary": "Summary about company and its potential",
+  "product_description": "One-line description or 'Unclear from site'",
+  "vertical": "Industry vertical (e.g., Fintech, Healthtech, SaaS)",
+  "business_model": "B2B, B2C, B2B2C, Marketplace, Subscription, Services-led",
+  "motion": "SaaS, Infra/API, Marketplace, SaaS + hardware, Ops heavy, Services heavy",
+  "raise_stage": "Pre-seed, Seed, Series A, Series B, Growth, Bootstrapped, Unknown",
+  "company_size": "Startup, SMB, Mid-Market, Enterprise, Unknown",
+  "likely_icp_canada": "Most likely Canadian customer profile",
+  "fit_score": 1-10,
+  "fit_assessment": "Brief assessment of Canada fit",
+  "key_insights": ["3-5 concise insights"],
+  "questions_to_ask": ["5-7 strategic questions"],
+  "confidence_level": "High, Medium, or Low",
+  "notes": ["Important caveats"]
+}
+
 Do not include explanations, markdown, or any text outside the JSON object."""
 
 
-    ANALYSIS_PROMPT_TEMPLATE = """Evaluate the following company for Canada fit under TBDC’s Pivot program.
+    ANALYSIS_PROMPT_TEMPLATE = """Evaluate the following company for Canada fit.
 
 Company Input:
-{lead_data}
-
-Evaluation rules:
-- Always review the official website first.
-- Use third-party sources only to confirm or resolve ambiguity.
-- If the product remains unclear after reviewing multiple pages, explicitly say so and reduce confidence.
-
-Respond with a JSON object using the structure below:
-
-{{
-  "company_name": "Company name or primary domain",
-
-  "country": "Country where the company is based (infer from address, phone, or company info)",
-  "region": "Geographic region (e.g., North America, Europe, APAC, etc.)",
-
-  "product_description": "One-line description of what the product does and for whom (or 'Unclear from site' if applicable)",
-
-  "vertical": "Industry vertical or sector (e.g., Fintech - SME, Healthtech, SaaS, Logistics, Data/AI, etc.)",
-
-  "business_model": "Business model type (e.g., B2B, B2C, B2B2C, Marketplace, Subscription, Services-led)",
-
-  "motion": "Go-to-market motion (SaaS, Infra/API, Marketplace, SaaS + hardware, Ops heavy, Services heavy)",
-
-  "raise_stage": "Funding stage if identifiable (Pre-seed, Seed, Series A, Series B, Growth, Bootstrapped, Unknown)",
-
-  "company_size": "Estimated company size (Startup, SMB, Mid-Market, Enterprise, Unknown)",
-
-  "likely_icp_canada": "Most likely Canadian customer profile if applicable (e.g., SMBs, mid-market enterprises, regulated industries)",
-
-  "fit_score": "Integer from 1–10 indicating how strong the Canada market fit appears to be",
-
-  "fit_assessment": "Brief assessment explaining why this company is or is not a good fit for Canada and TBDC Pivot",
-
-  "key_insights": [
-    "3–5 concise insights about the company’s product, GTM readiness, or Canada relevance"
-  ],
-
-  "questions_to_ask": [
-    "5–7 strategic questions the team should ask to validate Canada entry, ICP, differentiation, and GTM feasibility"
-  ],
-
-  "confidence_level": "High, Medium, or Low",
-
-  "notes": [
-    "Any important caveats such as B2C focus, services-heavy model, regulatory friction, unclear product, or strong incumbents in Canada"
-  ]
-}}
-
-Respond ONLY with the JSON object and no additional text."""
+{lead_data}"""
 
 
     def __init__(self, bedrock_service: BedrockService):
@@ -365,6 +342,7 @@ Respond ONLY with the JSON object and no additional text."""
             "company_name": "Unknown",
             "country": "Unknown",
             "region": "Unknown",
+            "summary": "Unable to determine from available data",
             "product_description": "Unable to determine from available data",
             "vertical": "Unknown",
             "business_model": "Unknown",

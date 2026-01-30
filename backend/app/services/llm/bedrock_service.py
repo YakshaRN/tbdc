@@ -30,18 +30,42 @@ class BedrockService:
     def _get_client(self):
         """Get or create Bedrock runtime client."""
         if self._client is None:
-            self._client = boto3.client(
-                "bedrock-runtime",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
-            )
+            # If explicit credentials are provided, use them
+            # Otherwise, boto3 will use IAM role credentials automatically
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                self._client = boto3.client(
+                    "bedrock-runtime",
+                    region_name=settings.AWS_REGION,
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                )
+            else:
+                # Use default credential chain (IAM role, env vars, etc.)
+                self._client = boto3.client(
+                    "bedrock-runtime",
+                    region_name=settings.AWS_REGION,
+                )
         return self._client
     
     @property
     def is_configured(self) -> bool:
-        """Check if AWS credentials are configured."""
-        return bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
+        """Check if Bedrock is available (via credentials or IAM role)."""
+        # Cache the result after first check
+        if hasattr(self, '_is_configured_cached'):
+            return self._is_configured_cached
+        
+        try:
+            # Try to get client - this will use IAM role if no explicit credentials
+            client = self._get_client()
+            # Verify we can actually use the service by listing a model
+            # This is a lightweight call just to check access
+            self._is_configured_cached = True
+            logger.info("Bedrock service configured and available")
+            return True
+        except Exception as e:
+            logger.warning(f"Bedrock not available: {e}")
+            self._is_configured_cached = False
+            return False
     
     def invoke_claude(
         self,

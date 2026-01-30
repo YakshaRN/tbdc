@@ -119,8 +119,23 @@ class BedrockService:
             
             # Extract text from Claude response
             if "content" in response_body and len(response_body["content"]) > 0:
-                return response_body["content"][0]["text"]
+                response_text = response_body["content"][0]["text"]
+                
+                # Log the full LLM response
+                logger.info(f"=== LLM RESPONSE START ===")
+                logger.info(f"Model: {settings.BEDROCK_MODEL_ID}")
+                logger.info(f"Response length: {len(response_text)} chars")
+                logger.info(f"Response:\n{response_text}")
+                logger.info(f"=== LLM RESPONSE END ===")
+                
+                # Also log token usage if available
+                if "usage" in response_body:
+                    usage = response_body["usage"]
+                    logger.info(f"Token usage - Input: {usage.get('input_tokens', 'N/A')}, Output: {usage.get('output_tokens', 'N/A')}")
+                
+                return response_text
             
+            logger.warning("Empty response from LLM")
             return ""
             
         except ClientError as e:

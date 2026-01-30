@@ -76,7 +76,7 @@ class Settings:
     BEDROCK_TEMPERATURE: float = float(os.getenv("BEDROCK_TEMPERATURE", "0.3"))
     
     # DynamoDB Configuration (for caching lead analysis)
-    DYNAMODB_TABLE_NAME: str = os.getenv("DYNAMODB_TABLE_NAME", "tbdc_lead_analysis")
+    DYNAMODB_TABLE_NAME: str = os.getenv("DYNAMODB_TABLE_NAME", "leads")
     DYNAMODB_ENABLED: bool = os.getenv("DYNAMODB_ENABLED", "true").lower() in ("true", "1", "yes")
     
     # JWT Authentication

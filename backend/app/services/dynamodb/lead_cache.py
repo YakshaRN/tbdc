@@ -60,11 +60,45 @@ class LeadAnalysisCache:
     @property
     def is_enabled(self) -> bool:
         """Check if DynamoDB caching is enabled and configured."""
-        return (
+        enabled = (
             settings.DYNAMODB_ENABLED
             and bool(settings.AWS_ACCESS_KEY_ID)
             and bool(settings.AWS_SECRET_ACCESS_KEY)
         )
+        if not enabled:
+            if not settings.DYNAMODB_ENABLED:
+                logger.debug("DynamoDB caching disabled via DYNAMODB_ENABLED=false")
+            elif not settings.AWS_ACCESS_KEY_ID:
+                logger.debug("DynamoDB caching disabled: AWS_ACCESS_KEY_ID not set")
+            elif not settings.AWS_SECRET_ACCESS_KEY:
+                logger.debug("DynamoDB caching disabled: AWS_SECRET_ACCESS_KEY not set")
+        return enabled
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get the current status of the DynamoDB cache."""
+        status = {
+            "enabled": self.is_enabled,
+            "dynamodb_enabled_setting": settings.DYNAMODB_ENABLED,
+            "aws_credentials_set": bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY),
+            "table_name": settings.DYNAMODB_TABLE_NAME,
+            "region": settings.AWS_REGION,
+            "table_exists": False,
+        }
+        
+        if self.is_enabled:
+            try:
+                client = self._get_client()
+                client.describe_table(TableName=settings.DYNAMODB_TABLE_NAME)
+                status["table_exists"] = True
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                    status["table_exists"] = False
+                else:
+                    status["error"] = str(e)
+            except Exception as e:
+                status["error"] = str(e)
+        
+        return status
     
     def ensure_table_exists(self) -> bool:
         """
@@ -72,18 +106,29 @@ class LeadAnalysisCache:
         Returns True if table exists or was created successfully.
         """
         if not self.is_enabled:
+            logger.warning("DynamoDB is not enabled, skipping table creation")
             return False
         
-        client = self._get_client()
+        logger.info(f"Checking DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' in region '{settings.AWS_REGION}'...")
         
         try:
-            client.describe_table(TableName=settings.DYNAMODB_TABLE_NAME)
-            logger.debug(f"DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' exists")
+            client = self._get_client()
+        except Exception as e:
+            logger.error(f"Failed to create DynamoDB client: {e}")
+            return False
+        
+        try:
+            response = client.describe_table(TableName=settings.DYNAMODB_TABLE_NAME)
+            table_status = response.get("Table", {}).get("TableStatus", "UNKNOWN")
+            logger.info(f"DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' exists (status: {table_status})")
             return True
         except ClientError as e:
-            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            
+            if error_code == "ResourceNotFoundException":
                 # Table doesn't exist, create it
-                logger.info(f"Creating DynamoDB table '{settings.DYNAMODB_TABLE_NAME}'...")
+                logger.info(f"Table not found, creating DynamoDB table '{settings.DYNAMODB_TABLE_NAME}'...")
                 try:
                     client.create_table(
                         TableName=settings.DYNAMODB_TABLE_NAME,
@@ -96,16 +141,33 @@ class LeadAnalysisCache:
                         BillingMode="PAY_PER_REQUEST",  # On-demand pricing
                     )
                     # Wait for table to be created
+                    logger.info("Waiting for table to become active...")
                     waiter = client.get_waiter("table_exists")
                     waiter.wait(TableName=settings.DYNAMODB_TABLE_NAME)
-                    logger.info(f"DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' created successfully")
+                    logger.info(f"DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' created successfully!")
                     return True
                 except ClientError as create_error:
-                    logger.error(f"Failed to create DynamoDB table: {create_error}")
+                    create_code = create_error.response["Error"]["Code"]
+                    create_msg = create_error.response["Error"]["Message"]
+                    logger.error(f"Failed to create DynamoDB table: [{create_code}] {create_msg}")
+                    if create_code == "AccessDeniedException":
+                        logger.error("AWS credentials don't have permission to create DynamoDB tables")
+                        logger.error("Required permissions: dynamodb:CreateTable, dynamodb:DescribeTable")
                     return False
-            else:
-                logger.error(f"Error checking DynamoDB table: {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error creating table: {e}")
+                    return False
+            elif error_code == "AccessDeniedException":
+                logger.error(f"Access denied to DynamoDB: {error_message}")
+                logger.error("AWS credentials don't have permission to access DynamoDB")
+                logger.error("Required permissions: dynamodb:DescribeTable, dynamodb:GetItem, dynamodb:PutItem, dynamodb:DeleteItem")
                 return False
+            else:
+                logger.error(f"Error checking DynamoDB table: [{error_code}] {error_message}")
+                return False
+        except Exception as e:
+            logger.error(f"Unexpected error in ensure_table_exists: {e}")
+            return False
     
     def get_analysis(self, lead_id: str) -> Optional[LeadAnalysis]:
         """

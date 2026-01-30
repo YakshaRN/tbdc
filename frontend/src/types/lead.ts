@@ -3,6 +3,7 @@ export interface LeadAnalysis {
   company_name?: string;
   country?: string;
   region?: string;
+  summary?: string;
   product_description?: string;
   vertical?: string;
   business_model?: string;

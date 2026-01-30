@@ -162,6 +162,11 @@ export function LeadDetail({
           <DetailCard title="Summary" icon={Layers}>
             {isAnalysisLoading ? (
               <div className="space-y-4">
+                {/* Summary text skeleton */}
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <div className="h-4 bg-gray-200 rounded w-full skeleton mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4 skeleton" />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   {[...Array(6)].map((_, i) => (
                     <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
@@ -175,7 +180,14 @@ export function LeadDetail({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                {/* AI-generated Summary */}
+                {analysis?.summary && (
+                  <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100">
+                    <p className="text-sm text-gray-700 leading-relaxed">{analysis.summary}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
                 <SummaryItem 
                   label="Country" 
                   value={analysis?.country || lead.Country} 
@@ -211,6 +223,7 @@ export function LeadDetail({
                   value={analysis?.likely_icp_canada} 
                   icon={Target} 
                 />
+              </div>
               </div>
             )}
           </DetailCard>

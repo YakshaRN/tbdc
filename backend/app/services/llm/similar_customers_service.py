@@ -162,12 +162,19 @@ Respond ONLY with the JSON object."""
             context = "\n".join(context_parts)
             
             prompt = self.CUSTOMER_ANALYSIS_PROMPT.format(lead_data=context)
+            system_prompt = "You are an expert B2B market analyst who helps identify ideal customer profiles and finds real companies that match. Always suggest real, existing companies."
+            
+            # Log the final prompt being sent to LLM
+            logger.info("=== SIMILAR CUSTOMERS PROMPT START ===")
+            logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
+            logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+            logger.info("=== SIMILAR CUSTOMERS PROMPT END ===")
             
             logger.info("Finding similar customers using LLM...")
             
             response = self.bedrock.invoke_claude(
                 prompt=prompt,
-                system_prompt="You are an expert B2B market analyst who helps identify ideal customer profiles and finds real companies that match. Always suggest real, existing companies.",
+                system_prompt=system_prompt,
                 temperature=0.5,  # Slightly higher for more diverse results
             )
             

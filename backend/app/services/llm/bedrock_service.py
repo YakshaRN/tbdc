@@ -269,6 +269,12 @@ Respond ONLY with the JSON object and no additional text."""
         else:
             logger.debug(f"Analyzing lead with LLM...")
         
+        # Log the final prompt being sent to LLM
+        logger.info("=== LEAD ANALYSIS PROMPT START ===")
+        logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt[:500]}...")
+        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        logger.info("=== LEAD ANALYSIS PROMPT END ===")
+        
         try:
             response = self.bedrock.invoke_claude(
                 prompt=prompt,

@@ -35,51 +35,59 @@ class LeadAnalysisCache:
         self._table_checked = False
     
     def _get_client(self):
-        """Get or create DynamoDB client."""
+        """Get or create DynamoDB client.
+        
+        Uses explicit credentials if provided, otherwise falls back to
+        boto3's credential chain (IAM role, env vars, AWS config file).
+        """
         if self._client is None:
-            self._client = boto3.client(
-                "dynamodb",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
-            )
+            # Build kwargs - only include credentials if explicitly set
+            kwargs = {"region_name": settings.AWS_REGION}
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+            
+            self._client = boto3.client("dynamodb", **kwargs)
         return self._client
     
     def _get_table(self):
-        """Get or create DynamoDB table resource."""
+        """Get or create DynamoDB table resource.
+        
+        Uses explicit credentials if provided, otherwise falls back to
+        boto3's credential chain (IAM role, env vars, AWS config file).
+        """
         if self._table is None:
-            dynamodb = boto3.resource(
-                "dynamodb",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
-            )
+            # Build kwargs - only include credentials if explicitly set
+            kwargs = {"region_name": settings.AWS_REGION}
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+            
+            dynamodb = boto3.resource("dynamodb", **kwargs)
             self._table = dynamodb.Table(settings.DYNAMODB_TABLE_NAME)
         return self._table
     
     @property
     def is_enabled(self) -> bool:
-        """Check if DynamoDB caching is enabled and configured."""
-        enabled = (
-            settings.DYNAMODB_ENABLED
-            and bool(settings.AWS_ACCESS_KEY_ID)
-            and bool(settings.AWS_SECRET_ACCESS_KEY)
-        )
-        if not enabled:
-            if not settings.DYNAMODB_ENABLED:
-                logger.debug("DynamoDB caching disabled via DYNAMODB_ENABLED=false")
-            elif not settings.AWS_ACCESS_KEY_ID:
-                logger.debug("DynamoDB caching disabled: AWS_ACCESS_KEY_ID not set")
-            elif not settings.AWS_SECRET_ACCESS_KEY:
-                logger.debug("DynamoDB caching disabled: AWS_SECRET_ACCESS_KEY not set")
-        return enabled
+        """Check if DynamoDB caching is enabled.
+        
+        Only checks if DYNAMODB_ENABLED is true. Credentials can come from:
+        - Explicit AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
+        - EC2 IAM instance profile (auto-detected by boto3)
+        - AWS CLI config file
+        """
+        if not settings.DYNAMODB_ENABLED:
+            logger.debug("DynamoDB caching disabled via DYNAMODB_ENABLED=false")
+            return False
+        return True
     
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of the DynamoDB cache."""
+        has_explicit_creds = bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
         status = {
             "enabled": self.is_enabled,
             "dynamodb_enabled_setting": settings.DYNAMODB_ENABLED,
-            "aws_credentials_set": bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY),
+            "credential_source": "explicit" if has_explicit_creds else "iam_role_or_default",
             "table_name": settings.DYNAMODB_TABLE_NAME,
             "region": settings.AWS_REGION,
             "table_exists": False,

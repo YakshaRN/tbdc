@@ -72,8 +72,8 @@ export function LeadList({
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Leads</h2>
             <p className="text-xs text-gray-500">
-              {totalCount > 0 ? (
-                <>Showing {((currentPage - 1) * perPage) + 1}-{Math.min(currentPage * perPage, totalCount)} of {totalCount}</>
+              {currentPage > 1 || hasMoreRecords ? (
+                <>Page {currentPage} • {leads.length} leads{hasMoreRecords && " • More available"}</>
               ) : (
                 <>{leads.length} leads</>
               )}

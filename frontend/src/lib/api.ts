@@ -46,6 +46,37 @@ export interface WebsiteData {
   logo_url?: string;
 }
 
+export interface WebsiteAnalysisResponse {
+  success: boolean;
+  error?: string;
+  analysis?: {
+    company_name: string;
+    country: string;
+    region: string;
+    summary: string;
+    product_description: string;
+    vertical: string;
+    business_model: string;
+    motion: string;
+    raise_stage: string;
+    company_size: string;
+    likely_icp_canada: string;
+    fit_score: number;
+    fit_assessment: string;
+    key_insights: string[];
+    questions_to_ask: string[];
+    confidence_level: string;
+    notes: string[];
+  };
+  similar_customers?: {
+    name: string;
+    description: string;
+    industry: string;
+    website?: string;
+    why_similar: string;
+  }[];
+}
+
 export const webApi = {
   /**
    * Fetch company data from a website URL
@@ -59,6 +90,35 @@ export const webApi = {
    */
   async validateUrl(url: string): Promise<{ is_valid: boolean; normalized_url?: string }> {
     return fetchApi(`/web/validate?url=${encodeURIComponent(url)}`);
+  },
+
+  /**
+   * Analyze a website for Canada market fit using LLM
+   */
+  async analyzeWebsite(data: WebsiteData): Promise<WebsiteAnalysisResponse> {
+    const response = await fetch(`${API_BASE_URL}/web/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: data.url,
+        company_name: data.company_name,
+        description: data.description,
+        domain: data.domain,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        keywords: data.keywords || [],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+      throw new ApiError(response.status, error.detail || "Failed to analyze website");
+    }
+
+    return response.json();
   },
 };
 

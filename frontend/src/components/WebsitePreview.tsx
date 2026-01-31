@@ -1,6 +1,7 @@
 "use client";
 
-import { WebsiteData } from "@/lib/api";
+import { useState } from "react";
+import { WebsiteData, WebsiteAnalysisResponse, webApi } from "@/lib/api";
 import {
   Globe,
   Building2,
@@ -12,6 +13,13 @@ import {
   AlertCircle,
   Tag,
   Link2,
+  Sparkles,
+  Loader2,
+  Target,
+  HelpCircle,
+  Lightbulb,
+  Users,
+  RefreshCcw,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -21,6 +29,26 @@ interface WebsitePreviewProps {
 }
 
 export function WebsitePreview({ data, onClose }: WebsitePreviewProps) {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<WebsiteAnalysisResponse | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const handleEvaluate = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const result = await webApi.analyzeWebsite(data);
+      setAnalysisResult(result);
+      if (!result.success) {
+        setAnalysisError(result.error || "Analysis failed");
+      }
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : "Failed to analyze website");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   if (!data.success) {
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center p-8">
@@ -103,19 +131,179 @@ export function WebsitePreview({ data, onClose }: WebsitePreviewProps) {
           </button>
         </div>
 
-        {/* Badge */}
-        <div className="mt-4 flex items-center gap-2">
-          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-            Website Preview
-          </span>
-          <span className="text-xs text-gray-500">
-            Data fetched from website - not a lead yet
-          </span>
+        {/* Badge and Evaluate Button */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+              Website Preview
+            </span>
+            <span className="text-xs text-gray-500">
+              Data fetched from website - not a lead yet
+            </span>
+          </div>
+          
+          {/* Evaluate Button */}
+          <button
+            onClick={handleEvaluate}
+            disabled={isAnalyzing}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+              isAnalyzing
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : analysisResult?.success
+                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-md shadow-emerald-200"
+            )}
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : analysisResult?.success ? (
+              <>
+                <RefreshCcw className="w-4 h-4" />
+                Re-evaluate
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Evaluate for Canada
+              </>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Content */}
       <div className="p-6 space-y-6">
+        {/* Analysis Error */}
+        {analysisError && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Analysis Failed</p>
+              <p className="text-sm text-red-600">{analysisError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Analysis Results */}
+        {analysisResult?.success && analysisResult.analysis && (
+          <>
+            {/* Fit Score Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+                  <Target className="w-4 h-4" />
+                </div>
+                <h3 className="font-semibold text-gray-900">Canada Market Fit</h3>
+              </div>
+              <div className="p-5">
+                <div className="flex items-center gap-6 mb-4">
+                  <div className={clsx(
+                    "w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold",
+                    analysisResult.analysis.fit_score >= 7 ? "bg-emerald-100 text-emerald-700" :
+                    analysisResult.analysis.fit_score >= 4 ? "bg-yellow-100 text-yellow-700" :
+                    "bg-red-100 text-red-700"
+                  )}>
+                    {analysisResult.analysis.fit_score}/10
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {analysisResult.analysis.fit_assessment}
+                    </p>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                        {analysisResult.analysis.vertical}
+                      </span>
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                        {analysisResult.analysis.business_model}
+                      </span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                        {analysisResult.analysis.confidence_level} confidence
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {analysisResult.analysis.summary}
+                </p>
+              </div>
+            </div>
+
+            {/* Key Insights */}
+            {analysisResult.analysis.key_insights.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 text-white">
+                    <Lightbulb className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">Key Insights</h3>
+                </div>
+                <div className="p-5">
+                  <ul className="space-y-2">
+                    {analysisResult.analysis.key_insights.map((insight, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-emerald-500 mt-1">•</span>
+                        {insight}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Questions to Ask */}
+            {analysisResult.analysis.questions_to_ask.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">Questions to Ask</h3>
+                </div>
+                <div className="p-5">
+                  <ul className="space-y-2">
+                    {analysisResult.analysis.questions_to_ask.map((question, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-purple-500 font-medium">{i + 1}.</span>
+                        {question}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Similar Customers */}
+            {analysisResult.similar_customers && analysisResult.similar_customers.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">Potential Canadian Customers</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  {analysisResult.similar_customers.map((customer, i) => (
+                    <div key={i} className="p-4 bg-gray-50 rounded-xl">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-gray-900">{customer.name}</h4>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+                          {customer.industry}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{customer.description}</p>
+                      <p className="text-xs text-gray-500 italic">{customer.why_similar}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {/* Description */}
         {data.description && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">

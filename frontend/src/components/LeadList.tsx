@@ -50,7 +50,6 @@ export function LeadList({
   onPrevPage,
   onGoToPage,
 }: LeadListProps) {
-  const totalPages = Math.ceil(totalCount / perPage) || 1;
   const filteredLeads = leads.filter((lead) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
@@ -180,8 +179,8 @@ export function LeadList({
         )}
       </div>
 
-      {/* Pagination Controls */}
-      {totalCount > perPage && !searchQuery && (
+      {/* Pagination Controls - Show when there are more records or we're past page 1 */}
+      {(hasMoreRecords || currentPage > 1) && !searchQuery && (
         <div className="border-t border-gray-200 bg-white p-3">
           <div className="flex items-center justify-between">
             {/* Previous Button */}
@@ -200,35 +199,11 @@ export function LeadList({
             </button>
 
             {/* Page Info */}
-            <div className="flex items-center gap-1">
-              {/* Quick page buttons */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => onGoToPage?.(pageNum)}
-                    disabled={isLoading}
-                    className={clsx(
-                      "w-8 h-8 rounded-lg text-sm font-medium transition-all",
-                      currentPage === pageNum
-                        ? "bg-emerald-500 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    )}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="font-medium">Page {currentPage}</span>
+              {hasMoreRecords && (
+                <span className="text-gray-400">• More available</span>
+              )}
             </div>
 
             {/* Next Button */}

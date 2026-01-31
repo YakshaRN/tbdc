@@ -20,13 +20,16 @@ class LeadAnalysisCache:
     DynamoDB-based cache for lead analysis and marketing materials.
     
     Table Schema:
-    - lead_id (PK): Zoho Lead ID
+    - lead_id (PK): Zoho Lead ID (or company_name if lead_id not available)
     - analysis: JSON string of LeadAnalysis
     - marketing_materials: JSON string of marketing material list
+    - similar_customers: JSON string of similar customers list
+    - company_name: Company name for reference
+    - fit_score: For easier querying/filtering
     - created_at: ISO timestamp when analysis was created
     - updated_at: ISO timestamp when analysis was last updated
-    - company_name: For easier querying
-    - fit_score: For easier querying/filtering
+    
+    Note: If you don't have a lead_id, you can use company_name as the key.
     """
     
     def __init__(self):
@@ -212,6 +215,7 @@ class LeadAnalysisCache:
         
         try:
             table = self._get_table()
+            # Simple GetItem with partition key only
             response = table.get_item(Key={"lead_id": lead_id})
             
             if "Item" in response:
@@ -308,7 +312,7 @@ class LeadAnalysisCache:
         Delete cached analysis for a lead.
         
         Args:
-            lead_id: Zoho Lead ID
+            lead_id: Zoho Lead ID (or company_name if that was used as key)
             
         Returns:
             True if deleted successfully, False otherwise
@@ -318,6 +322,7 @@ class LeadAnalysisCache:
         
         try:
             table = self._get_table()
+            # Simple DeleteItem with partition key only
             table.delete_item(Key={"lead_id": lead_id})
             logger.info(f"Deleted cached analysis for lead {lead_id}")
             return True

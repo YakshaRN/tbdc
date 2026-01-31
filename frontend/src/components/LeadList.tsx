@@ -261,7 +261,10 @@ interface LeadItemProps {
 
 function LeadItem({ lead, isSelected, onClick, index }: LeadItemProps) {
   const fullName = [lead.First_Name, lead.Last_Name].filter(Boolean).join(" ") || "Unknown";
-  const initials = fullName
+  const companyName = lead.Company || "Unknown Company";
+  
+  // Use company initials for avatar
+  const initials = companyName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -291,53 +294,44 @@ function LeadItem({ lead, isSelected, onClick, index }: LeadItemProps) {
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-start gap-3">
-        {/* Avatar */}
+        {/* Avatar - Company initials */}
         <div
           className={clsx(
-            "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shrink-0",
+            "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-medium shrink-0",
             isSelected
               ? "bg-emerald-500 text-white"
-              : "bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600"
+              : "bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700"
           )}
         >
           {initials}
         </div>
 
-        {/* Content */}
+        {/* Content - Company name first, then contact */}
         <div className="flex-1 min-w-0">
+          {/* Company Name - Primary */}
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-medium text-gray-900 truncate">{fullName}</span>
+            <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="text-sm font-semibold text-gray-900 truncate">{companyName}</span>
             {lead.Lead_Status && (
-              <span className={clsx("px-1.5 py-0.5 text-[10px] font-medium rounded-full", statusColor)}>
+              <span className={clsx("px-1.5 py-0.5 text-[10px] font-medium rounded-full shrink-0", statusColor)}>
                 {lead.Lead_Status}
               </span>
             )}
           </div>
 
-          {lead.Company && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
-              <Building2 className="w-3 h-3" />
-              <span className="truncate">{lead.Company}</span>
-            </div>
-          )}
+          {/* Contact Name - Secondary */}
+          <div className="text-xs text-gray-500 mb-1 truncate">
+            {fullName}
+          </div>
 
+          {/* Email */}
           <div className="flex items-center gap-3 text-xs text-gray-400">
             {lead.Email && (
               <div className="flex items-center gap-1">
                 <Mail className="w-3 h-3" />
-                <span className="truncate max-w-[120px]">{lead.Email}</span>
+                <span className="truncate max-w-[150px]">{lead.Email}</span>
               </div>
             )}
-            {/* {lead.Website && (
-              <div className="flex items-center gap-1">
-                <Globe className="w-3 h-3" />
-              </div>
-            )}
-            {lead.Phone && (
-              <div className="flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-              </div>
-            )} */}
           </div>
         </div>
 

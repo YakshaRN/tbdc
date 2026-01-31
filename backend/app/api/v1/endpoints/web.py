@@ -172,9 +172,11 @@ async def analyze_website(request: WebsiteAnalysisRequest):
         
         # Find similar customers
         logger.info("Finding similar customers...")
+        # Convert analysis to dict for the service
+        analysis_dict = analysis.model_dump() if hasattr(analysis, 'model_dump') else analysis.dict()
         similar_customers_data = similar_customers_service.find_similar_customers(
             lead_data=lead_like_data,
-            analysis=analysis
+            analysis_data=analysis_dict
         )
         
         # Convert to response format

@@ -12,7 +12,8 @@ from loguru import logger
 from app.services.web.scraper import website_scraper
 from app.services.llm.bedrock_service import lead_analysis_service
 from app.services.llm.similar_customers_service import similar_customers_service
-from app.schemas.lead_analysis import LeadAnalysis
+from app.services.vector.marketing_vector_store import marketing_vector_store
+from app.schemas.lead_analysis import LeadAnalysis, EnrichedLeadResponse
 
 router = APIRouter()
 
@@ -93,39 +94,27 @@ async def validate_url(
     )
 
 
-class SimilarCustomer(BaseModel):
-    """Similar customer suggestion."""
-    name: str
-    description: str
-    industry: str
-    website: Optional[str] = None
-    why_similar: str
-
-
 class WebsiteAnalysisRequest(BaseModel):
     """Request model for website analysis."""
     url: str
     company_name: Optional[str] = None
+    title: Optional[str] = None
     description: Optional[str] = None
     domain: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     keywords: List[str] = []
+    logo_url: Optional[str] = None
 
 
-class WebsiteAnalysisResponse(BaseModel):
-    """Response model for website analysis."""
-    success: bool
-    error: Optional[str] = None
-    analysis: Optional[LeadAnalysis] = None
-    similar_customers: List[SimilarCustomer] = []
-
-
-@router.post("/analyze", response_model=WebsiteAnalysisResponse)
+@router.post("/analyze", response_model=EnrichedLeadResponse)
 async def analyze_website(request: WebsiteAnalysisRequest):
     """
     Analyze a website/company using LLM for Canada market fit.
+    
+    Returns the SAME format as /leads/{id} endpoint (EnrichedLeadResponse)
+    so the frontend can use the same UI component for both.
     
     This endpoint takes website data and runs the same LLM analysis
     that is used for Zoho leads, generating:
@@ -135,23 +124,28 @@ async def analyze_website(request: WebsiteAnalysisRequest):
     - Fit score (1-10)
     - Strategic questions
     - Similar customer suggestions
-    
-    Use this when:
-    - User has fetched website data via /web/fetch
-    - User wants to evaluate the company without creating a Zoho lead
+    - Marketing materials
     """
     logger.info(f"Analyzing website: {request.url}")
     
     try:
-        # Format website data like lead data for the LLM
+        # Create lead-like data structure from website data
+        # This mimics Zoho lead data format so we can use the same LLM prompts
         lead_like_data = {
+            "id": f"website_{request.domain or 'unknown'}",
             "Company": request.company_name or request.domain,
             "Website": request.url,
             "Description": request.description,
             "Email": request.email,
             "Phone": request.phone,
-            "Country": "Unknown",  # Website doesn't provide this
+            "Country": "Unknown",
             "Lead_Source": "Website Search",
+            "First_Name": "",
+            "Last_Name": "",
+            "Title": request.title,
+            # Add a flag to identify this as website data
+            "_source": "website",
+            "_logo_url": request.logo_url,
         }
         
         # Add keywords as part of description if available
@@ -166,42 +160,63 @@ async def analyze_website(request: WebsiteAnalysisRequest):
         if request.address:
             lead_like_data["Street"] = request.address
         
-        # Run LLM analysis
+        # Run LLM analysis (same as Zoho leads)
         logger.info("Running LLM analysis on website data...")
         analysis = lead_analysis_service.analyze_lead(lead_like_data)
         
-        # Find similar customers
+        # Find similar customers (same as Zoho leads)
         logger.info("Finding similar customers...")
-        # Convert analysis to dict for the service
         analysis_dict = analysis.model_dump() if hasattr(analysis, 'model_dump') else analysis.dict()
         similar_customers_data = similar_customers_service.find_similar_customers(
             lead_data=lead_like_data,
             analysis_data=analysis_dict
         )
         
-        # Convert to response format
-        similar_customers = [
-            SimilarCustomer(
-                name=sc.get("name", "Unknown"),
-                description=sc.get("description", ""),
-                industry=sc.get("industry", ""),
-                website=sc.get("website"),
-                why_similar=sc.get("why_similar", "")
+        # Find relevant marketing materials (same as Zoho leads)
+        logger.info("Finding relevant marketing materials...")
+        marketing_materials = []
+        try:
+            materials = marketing_vector_store.find_relevant_materials(
+                analysis=analysis,
+                lead_data=lead_like_data,
+                top_k=5
             )
-            for sc in similar_customers_data
-        ]
+            marketing_materials = [
+                {
+                    "material_id": m.get("material_id", ""),
+                    "title": m.get("title", ""),
+                    "link": m.get("link", ""),
+                    "industry": m.get("industry", ""),
+                    "business_topics": m.get("business_topics", ""),
+                    "similarity_score": m.get("similarity_score", 0.0),
+                }
+                for m in materials
+            ]
+            logger.info(f"Found {len(marketing_materials)} relevant marketing materials")
+        except Exception as e:
+            logger.warning(f"Could not fetch marketing materials: {e}")
         
         logger.info(f"Website analysis completed: fit_score={analysis.fit_score}")
         
-        return WebsiteAnalysisResponse(
-            success=True,
+        # Return same format as EnrichedLeadResponse
+        return EnrichedLeadResponse(
+            data=lead_like_data,
             analysis=analysis,
-            similar_customers=similar_customers
+            analysis_available=True,
+            from_cache=False,
+            marketing_materials=marketing_materials,
+            similar_customers=similar_customers_data
         )
         
     except Exception as e:
         logger.error(f"Error analyzing website: {e}")
-        return WebsiteAnalysisResponse(
-            success=False,
-            error=str(e)
+        # Return error in same format
+        from app.schemas.lead_analysis import LeadAnalysis as LA
+        return EnrichedLeadResponse(
+            data={"Company": request.company_name or request.domain, "Website": request.url, "error": str(e)},
+            analysis=LA(company_name=request.company_name or "Unknown"),
+            analysis_available=False,
+            from_cache=False,
+            marketing_materials=[],
+            similar_customers=[]
         )

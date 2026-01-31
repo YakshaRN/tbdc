@@ -48,37 +48,6 @@ export interface WebsiteData {
   logo_url?: string;
 }
 
-export interface WebsiteAnalysisResponse {
-  success: boolean;
-  error?: string;
-  analysis?: {
-    company_name: string;
-    country: string;
-    region: string;
-    summary: string;
-    product_description: string;
-    vertical: string;
-    business_model: string;
-    motion: string;
-    raise_stage: string;
-    company_size: string;
-    likely_icp_canada: string;
-    fit_score: number;
-    fit_assessment: string;
-    key_insights: string[];
-    questions_to_ask: string[];
-    confidence_level: string;
-    notes: string[];
-  };
-  similar_customers?: {
-    name: string;
-    description: string;
-    industry: string;
-    website?: string;
-    why_similar: string;
-  }[];
-}
-
 export const webApi = {
   /**
    * Fetch company data from a website URL
@@ -96,8 +65,9 @@ export const webApi = {
 
   /**
    * Analyze a website for Canada market fit using LLM
+   * Returns the same format as LeadResponse so we can use the same UI
    */
-  async analyzeWebsite(data: WebsiteData): Promise<WebsiteAnalysisResponse> {
+  async analyzeWebsite(data: WebsiteData): Promise<LeadResponse> {
     const response = await fetch(`${API_BASE_URL}/web/analyze`, {
       method: "POST",
       headers: {
@@ -106,12 +76,14 @@ export const webApi = {
       body: JSON.stringify({
         url: data.url,
         company_name: data.company_name,
+        title: data.title,
         description: data.description,
         domain: data.domain,
         email: data.email,
         phone: data.phone,
         address: data.address,
         keywords: data.keywords || [],
+        logo_url: data.logo_url,
       }),
     });
 

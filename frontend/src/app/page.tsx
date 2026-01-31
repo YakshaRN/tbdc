@@ -196,6 +196,22 @@ export default function Dashboard() {
     setSearchQuery("");
   };
 
+  // Handle website evaluation - receives analysis in same format as lead
+  const handleWebsiteEvaluate = (
+    lead: Lead,
+    analysis: LeadAnalysis,
+    materials: MarketingMaterial[],
+    customers: SimilarCustomer[]
+  ) => {
+    // Clear website data and show results in LeadDetail
+    setWebsiteData(null);
+    setSelectedLead(lead);
+    setSelectedLeadAnalysis(analysis);
+    setSelectedLeadMaterials(materials);
+    setSelectedLeadSimilarCustomers(customers);
+    setIsAnalysisLoading(false);
+  };
+
   // Show loading while checking auth
   if (authLoading) {
     return (
@@ -296,6 +312,7 @@ export default function Dashboard() {
             <WebsitePreview 
               data={websiteData}
               onClose={handleClearWebsiteData}
+              onEvaluate={handleWebsiteEvaluate}
             />
           ) : (
             <LeadDetail 

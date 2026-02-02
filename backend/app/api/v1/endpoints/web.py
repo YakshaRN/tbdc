@@ -176,8 +176,8 @@ async def analyze_website(request: WebsiteAnalysisRequest):
         logger.info("Finding relevant marketing materials...")
         marketing_materials = []
         try:
-            materials = marketing_vector_store.find_relevant_materials(
-                analysis=analysis,
+            # Use search_for_lead - same method as leads endpoint
+            materials = marketing_vector_store.search_for_lead(
                 lead_data=lead_like_data,
                 top_k=5
             )

@@ -487,6 +487,246 @@ class ZohoCRMService:
         """Get a specific deal by ID."""
         return await self._make_request("GET", f"/Deals/{deal_id}")
     
+    async def create_deal(self, deal_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new deal in Zoho CRM.
+        
+        Args:
+            deal_data: Deal data following Zoho's schema
+            
+        Returns:
+            Created deal response
+        """
+        payload = {"data": [deal_data]}
+        return await self._make_request("POST", "/Deals", json_data=payload)
+    
+    async def update_deal(self, deal_id: str, deal_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing deal.
+        
+        Args:
+            deal_id: Zoho Deal ID
+            deal_data: Updated deal data
+            
+        Returns:
+            Updated deal response
+        """
+        payload = {"data": [{"id": deal_id, **deal_data}]}
+        return await self._make_request("PUT", "/Deals", json_data=payload)
+    
+    async def delete_deal(self, deal_id: str) -> Dict[str, Any]:
+        """
+        Delete a deal.
+        
+        Args:
+            deal_id: Zoho Deal ID
+            
+        Returns:
+            Deletion response
+        """
+        return await self._make_request("DELETE", f"/Deals/{deal_id}")
+    
+    async def search_deals(
+        self,
+        criteria: str,
+        page: int = 1,
+        per_page: int = 200,
+        fields: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search deals using Zoho's search criteria.
+        
+        Args:
+            criteria: Search criteria (e.g., "(Stage:equals:Qualification)")
+            page: Page number
+            per_page: Records per page
+            fields: Fields to retrieve
+            
+        Returns:
+            Search results
+        """
+        # Use default fields if none specified (required in Zoho CRM API v7)
+        field_list = fields if fields else self.DEFAULT_DEAL_FIELDS
+        
+        params = {
+            "criteria": criteria,
+            "fields": ",".join(field_list),
+            "page": page,
+            "per_page": min(per_page, 200),
+        }
+        return await self._make_request("GET", "/Deals/search", params=params)
+    
+    async def search_all_deals(
+        self,
+        criteria: str,
+        fields: Optional[List[str]] = None,
+        max_records: int = 2000,
+    ) -> Dict[str, Any]:
+        """
+        Search and fetch ALL deals matching criteria by paginating through all pages.
+        
+        Args:
+            criteria: Search criteria (e.g., "(Stage:equals:Qualification)")
+            fields: Fields to retrieve
+            max_records: Maximum records to fetch (safety limit)
+            
+        Returns:
+            Combined results with all matching deals
+        """
+        all_deals = []
+        page = 1
+        per_page = 200  # Max allowed by Zoho
+        
+        while len(all_deals) < max_records:
+            try:
+                result = await self.search_deals(
+                    criteria=criteria,
+                    page=page,
+                    per_page=per_page,
+                    fields=fields,
+                )
+                
+                deals = result.get("data", [])
+                if not deals:
+                    break
+                    
+                all_deals.extend(deals)
+                logger.info(f"Fetched page {page}: {len(deals)} deals (total: {len(all_deals)})")
+                
+                # Check if there are more records
+                info = result.get("info", {})
+                if not info.get("more_records", False):
+                    break
+                    
+                page += 1
+                
+            except Exception as e:
+                logger.error(f"Error fetching page {page}: {e}")
+                break
+        
+        logger.info(f"Total deals fetched: {len(all_deals)}")
+        
+        return {
+            "data": all_deals,
+            "info": {
+                "count": len(all_deals),
+                "page": 1,
+                "per_page": len(all_deals),
+                "more_records": False,
+            }
+        }
+    
+    async def get_deal_attachments(self, deal_id: str) -> List[Dict[str, Any]]:
+        """
+        Get list of attachments for a deal.
+        
+        Args:
+            deal_id: Zoho Deal ID
+            
+        Returns:
+            List of attachment metadata (id, file_name, size, etc.)
+        """
+        try:
+            params = {
+                "fields": ",".join(self.DEFAULT_ATTACHMENT_FIELDS)
+            }
+            result = await self._make_request(
+                "GET", 
+                f"/Deals/{deal_id}/Attachments",
+                params=params
+            )
+            return result.get("data", [])
+        except Exception as e:
+            logger.warning(f"Error fetching attachments for deal {deal_id}: {e}")
+            return []
+    
+    async def download_deal_attachment(self, deal_id: str, attachment_id: str) -> Optional[bytes]:
+        """
+        Download an attachment file content from a deal.
+        
+        Args:
+            deal_id: Zoho Deal ID
+            attachment_id: Attachment ID
+            
+        Returns:
+            File content as bytes, or None if failed
+        """
+        try:
+            client = await self._get_client()
+            headers = await self._get_headers()
+            # Remove Content-Type for download
+            headers.pop("Content-Type", None)
+            
+            url = f"{self._get_base_url()}/Deals/{deal_id}/Attachments/{attachment_id}"
+            
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                return response.content
+            else:
+                logger.warning(f"Failed to download deal attachment {attachment_id}: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error downloading deal attachment {attachment_id}: {e}")
+            return None
+    
+    async def get_deal_attachments_with_content(
+        self, 
+        deal_id: str,
+        supported_extensions: List[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all attachments for a deal with their file content.
+        
+        Args:
+            deal_id: Zoho Deal ID
+            supported_extensions: List of file extensions to download (e.g., ['.pdf', '.docx'])
+                                 If None, downloads common document types.
+            
+        Returns:
+            List of attachment dicts with 'content' key containing bytes
+        """
+        if supported_extensions is None:
+            supported_extensions = [
+                '.pdf', '.doc', '.docx', '.ppt', '.pptx',
+                '.txt', '.rtf', '.xls', '.xlsx'
+            ]
+        
+        attachments = await self.get_deal_attachments(deal_id)
+        
+        result = []
+        for attachment in attachments:
+            file_name = attachment.get("File_Name", "")
+            attachment_id = attachment.get("id")
+            
+            if not attachment_id:
+                continue
+            
+            # Check if file extension is supported
+            ext = "." + file_name.split(".")[-1].lower() if "." in file_name else ""
+            if ext not in supported_extensions:
+                logger.debug(f"Skipping unsupported file type: {file_name}")
+                continue
+            
+            # Download the content
+            content = await self.download_deal_attachment(deal_id, attachment_id)
+            
+            if content:
+                result.append({
+                    "id": attachment_id,
+                    "file_name": file_name,
+                    "extension": ext,
+                    "size": attachment.get("Size", len(content)),
+                    "content": content,
+                    "created_time": attachment.get("Created_Time"),
+                })
+                logger.info(f"Downloaded deal attachment: {file_name} ({len(content)} bytes)")
+            else:
+                logger.warning(f"Failed to download deal attachment: {file_name}")
+        
+        return result
+    
     # ==================== GENERIC MODULE OPERATIONS ====================
     
     async def get_records(

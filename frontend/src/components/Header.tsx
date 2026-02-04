@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { RefreshCcw, Settings, User, LogOut, ChevronDown } from "lucide-react";
 import clsx from "clsx";
+import { TabNavigation, TabType } from "./TabNavigation";
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -11,7 +12,10 @@ interface HeaderProps {
   onLogout?: () => void;
   isRefreshing?: boolean;
   leadCount?: number;
+  dealCount?: number;
   userName?: string;
+  activeTab?: TabType;
+  onTabChange?: (tab: TabType) => void;
 }
 
 export function Header({ 
@@ -20,7 +24,10 @@ export function Header({
   onLogout,
   isRefreshing = false, 
   leadCount = 0,
-  userName = "User"
+  dealCount = 0,
+  userName = "User",
+  activeTab = "leads",
+  onTabChange,
 }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   
@@ -34,8 +41,8 @@ export function Header({
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
-      {/* Logo and Title */}
-      <div className="flex items-center gap-4">
+      {/* Logo and Tab Navigation */}
+      <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
           <Image
             src="/tbdc-logo.png"
@@ -47,13 +54,14 @@ export function Header({
           />
         </div>
         
-        {leadCount > 0 && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-medium text-gray-600">
-              {leadCount} leads synced
-            </span>
-          </div>
+        {/* Tab Navigation */}
+        {onTabChange && (
+          <TabNavigation
+            activeTab={activeTab}
+            onTabChange={onTabChange}
+            leadCount={leadCount}
+            dealCount={dealCount}
+          />
         )}
       </div>
 

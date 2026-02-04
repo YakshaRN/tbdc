@@ -1,4 +1,5 @@
 import { Lead, LeadListResponse, LeadResponse } from "@/types/lead";
+import { Deal, DealListResponse, DealResponse } from "@/types/deal";
 
 declare const process: { env: { NEXT_PUBLIC_API_URL?: string } };
 
@@ -181,6 +182,98 @@ export const leadsApi = {
    */
   async deleteLead(id: string): Promise<{ message: string; id: string }> {
     return fetchApi(`/leads/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export const dealsApi = {
+  /**
+   * Fetch all deals with pagination
+   */
+  async getDeals(params?: {
+    page?: number;
+    per_page?: number;
+    sort_by?: string;
+    sort_order?: "asc" | "desc";
+    fields?: string;
+    stage?: string;
+  }): Promise<DealListResponse> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page) searchParams.set("page", params.page.toString());
+    if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+    if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+    if (params?.sort_order) searchParams.set("sort_order", params.sort_order);
+    if (params?.fields) searchParams.set("fields", params.fields);
+    if (params?.stage) searchParams.set("stage", params.stage);
+
+    const query = searchParams.toString();
+    return fetchApi<DealListResponse>(`/deals/${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Fetch a single deal by ID
+   */
+  async getDeal(id: string): Promise<DealResponse> {
+    return fetchApi<DealResponse>(`/deals/${id}`);
+  },
+
+  /**
+   * Reevaluate a deal - regenerate analysis (ignore cache)
+   */
+  async reevaluateDeal(id: string): Promise<DealResponse> {
+    return fetchApi<DealResponse>(`/deals/${id}?refresh_analysis=true`);
+  },
+
+  /**
+   * Search deals
+   */
+  async searchDeals(params: {
+    deal_name?: string;
+    account_name?: string;
+    stage?: string;
+    criteria?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<{ data: Deal[]; info: Record<string, unknown> }> {
+    const searchParams = new URLSearchParams();
+    
+    if (params.deal_name) searchParams.set("deal_name", params.deal_name);
+    if (params.account_name) searchParams.set("account_name", params.account_name);
+    if (params.stage) searchParams.set("stage", params.stage);
+    if (params.criteria) searchParams.set("criteria", params.criteria);
+    if (params.page) searchParams.set("page", params.page.toString());
+    if (params.per_page) searchParams.set("per_page", params.per_page.toString());
+
+    return fetchApi(`/deals/search/?${searchParams.toString()}`);
+  },
+
+  /**
+   * Create a new deal
+   */
+  async createDeal(dealData: Partial<Deal>): Promise<DealResponse> {
+    return fetchApi<DealResponse>("/deals/", {
+      method: "POST",
+      body: JSON.stringify(dealData),
+    });
+  },
+
+  /**
+   * Update an existing deal
+   */
+  async updateDeal(id: string, dealData: Partial<Deal>): Promise<DealResponse> {
+    return fetchApi<DealResponse>(`/deals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(dealData),
+    });
+  },
+
+  /**
+   * Delete a deal
+   */
+  async deleteDeal(id: string): Promise<{ message: string; id: string }> {
+    return fetchApi(`/deals/${id}`, {
       method: "DELETE",
     });
   },

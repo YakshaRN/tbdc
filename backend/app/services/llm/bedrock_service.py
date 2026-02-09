@@ -121,9 +121,19 @@ class BedrockService:
             if "content" in response_body and len(response_body["content"]) > 0:
                 response_text = response_body["content"][0]["text"]
                 
+                # Check for truncation via stop_reason
+                stop_reason = response_body.get("stop_reason", "unknown")
+                if stop_reason == "max_tokens":
+                    logger.warning(
+                        f"LLM response was TRUNCATED (stop_reason=max_tokens). "
+                        f"Increase max_tokens to get complete output. "
+                        f"Current response length: {len(response_text)} chars"
+                    )
+                
                 # Log the full LLM response
                 logger.info(f"=== LLM RESPONSE START ===")
                 logger.info(f"Model: {settings.BEDROCK_MODEL_ID}")
+                logger.info(f"Stop reason: {stop_reason}")
                 logger.info(f"Response length: {len(response_text)} chars")
                 logger.info(f"Response:\n{response_text}")
                 logger.info(f"=== LLM RESPONSE END ===")

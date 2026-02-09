@@ -2,7 +2,7 @@
 DynamoDB service for caching deal analysis and marketing materials.
 
 Stores LLM-generated analysis and marketing material recommendations
-to avoid repeated API calls for the same deal.
+in a separate 'tbdc_deal_analysis' table to keep deal data isolated from leads.
 """
 import json
 from datetime import datetime
@@ -19,35 +19,32 @@ class DealAnalysisCache:
     """
     DynamoDB-based cache for deal analysis and marketing materials.
     
-    Uses the same table as lead cache but with 'deal_' prefix for deal IDs
-    to avoid collisions.
+    Uses a separate table from lead cache (configured via DYNAMODB_DEAL_TABLE_NAME).
     
-    Table Schema:
-    - lead_id (PK): Zoho Deal ID with 'deal_' prefix (e.g., 'deal_12345')
+    Table Schema (tbdc_deal_analysis):
+    - deal_id (PK): Zoho Deal ID
     - analysis: JSON string of DealAnalysis
     - marketing_materials: JSON string of marketing material list
     - similar_customers: JSON string of similar customers list
-    - company_name: Company name for reference
+    - company_name: Company/deal name for reference
     - fit_score: For easier querying/filtering
     - created_at: ISO timestamp when analysis was created
     - updated_at: ISO timestamp when analysis was last updated
     """
-    
-    DEAL_PREFIX = "deal_"
     
     def __init__(self):
         self._client = None
         self._table = None
         self._table_checked = False
     
+    @property
+    def table_name(self) -> str:
+        """Get the deal analysis table name from settings."""
+        return settings.DYNAMODB_DEAL_TABLE_NAME
+    
     def _get_client(self):
-        """Get or create DynamoDB client.
-        
-        Uses explicit credentials if provided, otherwise falls back to
-        boto3's credential chain (IAM role, env vars, AWS config file).
-        """
+        """Get or create DynamoDB client."""
         if self._client is None:
-            # Build kwargs - only include credentials if explicitly set
             kwargs = {"region_name": settings.AWS_REGION}
             if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
                 kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
@@ -57,50 +54,33 @@ class DealAnalysisCache:
         return self._client
     
     def _get_table(self):
-        """Get or create DynamoDB table resource.
-        
-        Uses explicit credentials if provided, otherwise falls back to
-        boto3's credential chain (IAM role, env vars, AWS config file).
-        """
+        """Get or create DynamoDB table resource."""
         if self._table is None:
-            # Build kwargs - only include credentials if explicitly set
             kwargs = {"region_name": settings.AWS_REGION}
             if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
                 kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
                 kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
             
             dynamodb = boto3.resource("dynamodb", **kwargs)
-            self._table = dynamodb.Table(settings.DYNAMODB_TABLE_NAME)
+            self._table = dynamodb.Table(self.table_name)
         return self._table
-    
-    def _get_cache_key(self, deal_id: str) -> str:
-        """Generate cache key for a deal by adding prefix."""
-        if deal_id.startswith(self.DEAL_PREFIX):
-            return deal_id
-        return f"{self.DEAL_PREFIX}{deal_id}"
     
     @property
     def is_enabled(self) -> bool:
-        """Check if DynamoDB caching is enabled.
-        
-        Only checks if DYNAMODB_ENABLED is true. Credentials can come from:
-        - Explicit AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
-        - EC2 IAM instance profile (auto-detected by boto3)
-        - AWS CLI config file
-        """
+        """Check if DynamoDB caching is enabled."""
         if not settings.DYNAMODB_ENABLED:
             logger.debug("DynamoDB caching disabled via DYNAMODB_ENABLED=false")
             return False
         return True
     
     def get_status(self) -> Dict[str, Any]:
-        """Get the current status of the DynamoDB cache."""
+        """Get the current status of the DynamoDB deal cache."""
         has_explicit_creds = bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
         status = {
             "enabled": self.is_enabled,
             "dynamodb_enabled_setting": settings.DYNAMODB_ENABLED,
             "credential_source": "explicit" if has_explicit_creds else "iam_role_or_default",
-            "table_name": settings.DYNAMODB_TABLE_NAME,
+            "table_name": self.table_name,
             "region": settings.AWS_REGION,
             "table_exists": False,
             "cache_type": "deal",
@@ -109,7 +89,7 @@ class DealAnalysisCache:
         if self.is_enabled:
             try:
                 client = self._get_client()
-                client.describe_table(TableName=settings.DYNAMODB_TABLE_NAME)
+                client.describe_table(TableName=self.table_name)
                 status["table_exists"] = True
             except ClientError as e:
                 if e.response["Error"]["Code"] == "ResourceNotFoundException":
@@ -120,6 +100,74 @@ class DealAnalysisCache:
                 status["error"] = str(e)
         
         return status
+    
+    def ensure_table_exists(self) -> bool:
+        """
+        Check if the DynamoDB table exists, create if not.
+        Returns True if table exists or was created successfully.
+        """
+        if not self.is_enabled:
+            logger.warning("DynamoDB is not enabled, skipping table creation")
+            return False
+        
+        logger.info(f"Checking DynamoDB deal table '{self.table_name}' in region '{settings.AWS_REGION}'...")
+        
+        try:
+            client = self._get_client()
+        except Exception as e:
+            logger.error(f"Failed to create DynamoDB client: {e}")
+            return False
+        
+        try:
+            response = client.describe_table(TableName=self.table_name)
+            table_status = response.get("Table", {}).get("TableStatus", "UNKNOWN")
+            logger.info(f"DynamoDB deal table '{self.table_name}' exists (status: {table_status})")
+            return True
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            
+            if error_code == "ResourceNotFoundException":
+                # Table doesn't exist, create it
+                logger.info(f"Table not found, creating DynamoDB deal table '{self.table_name}'...")
+                try:
+                    client.create_table(
+                        TableName=self.table_name,
+                        KeySchema=[
+                            {"AttributeName": "deal_id", "KeyType": "HASH"},
+                        ],
+                        AttributeDefinitions=[
+                            {"AttributeName": "deal_id", "AttributeType": "S"},
+                        ],
+                        BillingMode="PAY_PER_REQUEST",
+                    )
+                    # Wait for table to be created
+                    logger.info("Waiting for deal table to become active...")
+                    waiter = client.get_waiter("table_exists")
+                    waiter.wait(TableName=self.table_name)
+                    logger.info(f"DynamoDB deal table '{self.table_name}' created successfully!")
+                    return True
+                except ClientError as create_error:
+                    create_code = create_error.response["Error"]["Code"]
+                    create_msg = create_error.response["Error"]["Message"]
+                    logger.error(f"Failed to create DynamoDB deal table: [{create_code}] {create_msg}")
+                    if create_code == "AccessDeniedException":
+                        logger.error("AWS credentials don't have permission to create DynamoDB tables")
+                        logger.error("Required permissions: dynamodb:CreateTable, dynamodb:DescribeTable")
+                    return False
+                except Exception as e:
+                    logger.error(f"Unexpected error creating deal table: {e}")
+                    return False
+            elif error_code == "AccessDeniedException":
+                logger.error(f"Access denied to DynamoDB: {error_message}")
+                logger.error("AWS credentials don't have permission to access DynamoDB")
+                return False
+            else:
+                logger.error(f"Error checking DynamoDB deal table: [{error_code}] {error_message}")
+                return False
+        except Exception as e:
+            logger.error(f"Unexpected error in ensure_table_exists: {e}")
+            return False
     
     def get_analysis(self, deal_id: str) -> Optional[DealAnalysis]:
         """
@@ -133,7 +181,7 @@ class DealAnalysisCache:
         """
         result = self.get_cached_data(deal_id)
         if result:
-            return result[0]  # Return just the analysis
+            return result[0]
         return None
     
     def get_cached_data(self, deal_id: str) -> Optional[Tuple[DealAnalysis, List[Dict[str, Any]], List[Dict[str, Any]]]]:
@@ -149,12 +197,14 @@ class DealAnalysisCache:
         if not self.is_enabled:
             return None
         
-        cache_key = self._get_cache_key(deal_id)
+        # Ensure table exists before first access
+        if not self._table_checked:
+            self.ensure_table_exists()
+            self._table_checked = True
         
         try:
             table = self._get_table()
-            # Simple GetItem with partition key only (using lead_id column for deals too)
-            response = table.get_item(Key={"lead_id": cache_key})
+            response = table.get_item(Key={"deal_id": deal_id})
             
             if "Item" in response:
                 item = response["Item"]
@@ -208,7 +258,10 @@ class DealAnalysisCache:
         if not self.is_enabled:
             return False
         
-        cache_key = self._get_cache_key(deal_id)
+        # Ensure table exists before first access
+        if not self._table_checked:
+            self.ensure_table_exists()
+            self._table_checked = True
         
         try:
             table = self._get_table()
@@ -221,7 +274,7 @@ class DealAnalysisCache:
                 analysis_dict = analysis.dict()
             
             item = {
-                "lead_id": cache_key,  # Using lead_id column for deals with prefix
+                "deal_id": deal_id,
                 "analysis": json.dumps(analysis_dict),
                 "marketing_materials": json.dumps(marketing_materials or []),
                 "similar_customers": json.dumps(similar_customers or []),
@@ -229,7 +282,6 @@ class DealAnalysisCache:
                 "fit_score": analysis_dict.get("fit_score", 5),
                 "created_at": now,
                 "updated_at": now,
-                "record_type": "deal",  # Mark as deal record
             }
             
             table.put_item(Item=item)
@@ -256,11 +308,9 @@ class DealAnalysisCache:
         if not self.is_enabled:
             return False
         
-        cache_key = self._get_cache_key(deal_id)
-        
         try:
             table = self._get_table()
-            table.delete_item(Key={"lead_id": cache_key})
+            table.delete_item(Key={"deal_id": deal_id})
             logger.info(f"Deleted cached analysis for deal {deal_id}")
             return True
             
@@ -279,7 +329,6 @@ class DealAnalysisCache:
         Returns:
             True if updated successfully, False otherwise
         """
-        # For simplicity, just use save which will overwrite
         return self.save_analysis(deal_id, analysis)
 
 

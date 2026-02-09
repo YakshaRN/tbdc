@@ -77,6 +77,7 @@ class Settings:
     
     # DynamoDB Configuration (for caching lead analysis)
     DYNAMODB_TABLE_NAME: str = os.getenv("DYNAMODB_TABLE_NAME", "leads")
+    DYNAMODB_DEAL_TABLE_NAME: str = os.getenv("DYNAMODB_DEAL_TABLE_NAME", "tbdc_deal_analysis")
     DYNAMODB_ENABLED: bool = os.getenv("DYNAMODB_ENABLED", "true").lower() in ("true", "1", "yes")
     
     # JWT Authentication

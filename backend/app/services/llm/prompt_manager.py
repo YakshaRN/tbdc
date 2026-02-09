@@ -1,7 +1,8 @@
 """
 Prompt Manager Service.
 
-Manages system and analysis prompts with persistence to a JSON file.
+Manages all LLM prompts (Leads and Deals/Application modules)
+with persistence to a JSON file.
 Allows runtime updates without restarting the server.
 """
 import json
@@ -12,7 +13,10 @@ from loguru import logger
 from app.core.config import settings
 
 
-# Default prompts (used if no saved prompts exist)
+# ============================================================
+# Lead Module Default Prompts
+# ============================================================
+
 DEFAULT_SYSTEM_PROMPT = """You are an expert B2B lead qualification specialist.
 
 Your role is to evaluate global startups for Canada and/or North America fit.
@@ -63,9 +67,41 @@ Company Input:
 {lead_data}"""
 
 
+# ============================================================
+# All prompt keys and their defaults (loaded lazily from deal module)
+# ============================================================
+
+# Keys used for storage
+LEAD_SYSTEM_PROMPT_KEY = "system_prompt"
+LEAD_ANALYSIS_PROMPT_KEY = "analysis_prompt"
+DEAL_SYSTEM_PROMPT_KEY = "deal_system_prompt"
+DEAL_ANALYSIS_PROMPT_KEY = "deal_analysis_prompt"
+DEAL_SCORING_SYSTEM_PROMPT_KEY = "deal_scoring_system_prompt"
+DEAL_SCORING_PROMPT_KEY = "deal_scoring_prompt"
+
+
+def _get_deal_defaults() -> Dict[str, str]:
+    """
+    Lazily import deal prompt defaults to avoid circular imports.
+    The deal_analysis_service defines its own default prompts.
+    """
+    from app.services.llm.deal_analysis_service import (
+        DEFAULT_DEAL_SYSTEM_PROMPT,
+        DEFAULT_DEAL_ANALYSIS_PROMPT,
+        SCORING_RUBRIC_SYSTEM_PROMPT,
+        SCORING_RUBRIC_PROMPT,
+    )
+    return {
+        DEAL_SYSTEM_PROMPT_KEY: DEFAULT_DEAL_SYSTEM_PROMPT,
+        DEAL_ANALYSIS_PROMPT_KEY: DEFAULT_DEAL_ANALYSIS_PROMPT,
+        DEAL_SCORING_SYSTEM_PROMPT_KEY: SCORING_RUBRIC_SYSTEM_PROMPT,
+        DEAL_SCORING_PROMPT_KEY: SCORING_RUBRIC_PROMPT,
+    }
+
+
 class PromptManager:
     """
-    Manages LLM prompts with file-based persistence.
+    Manages all LLM prompts (Leads + Deals) with file-based persistence.
     
     Stores prompts in a JSON file that persists across restarts.
     Provides methods to get and update prompts at runtime.
@@ -80,6 +116,18 @@ class PromptManager:
         """Ensure the data directory exists."""
         data_dir = self._prompts_file.parent
         data_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _get_all_defaults(self) -> Dict[str, str]:
+        """Get all default prompts (leads + deals)."""
+        defaults = {
+            LEAD_SYSTEM_PROMPT_KEY: DEFAULT_SYSTEM_PROMPT,
+            LEAD_ANALYSIS_PROMPT_KEY: DEFAULT_ANALYSIS_PROMPT,
+        }
+        try:
+            defaults.update(_get_deal_defaults())
+        except Exception as e:
+            logger.warning(f"Could not load deal prompt defaults: {e}")
+        return defaults
     
     def _load_prompts(self) -> None:
         """Load prompts from file or use defaults."""
@@ -97,11 +145,11 @@ class PromptManager:
                 logger.error(f"Error loading prompts: {e}")
                 self._prompts = {}
         
-        # Ensure defaults are set
-        if "system_prompt" not in self._prompts:
-            self._prompts["system_prompt"] = DEFAULT_SYSTEM_PROMPT
-        if "analysis_prompt" not in self._prompts:
-            self._prompts["analysis_prompt"] = DEFAULT_ANALYSIS_PROMPT
+        # Ensure all defaults are set (fills missing keys)
+        defaults = self._get_all_defaults()
+        for key, default_value in defaults.items():
+            if key not in self._prompts:
+                self._prompts[key] = default_value
         
         self._loaded = True
     
@@ -118,53 +166,90 @@ class PromptManager:
             logger.error(f"Error saving prompts: {e}")
             return False
     
+    # ----- Lead prompts -----
+    
     def get_system_prompt(self) -> str:
-        """Get the current system prompt."""
+        """Get the current lead system prompt."""
         self._load_prompts()
-        return self._prompts.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+        return self._prompts.get(LEAD_SYSTEM_PROMPT_KEY, DEFAULT_SYSTEM_PROMPT)
     
     def get_analysis_prompt(self) -> str:
-        """Get the current analysis prompt template."""
+        """Get the current lead analysis prompt template."""
         self._load_prompts()
-        return self._prompts.get("analysis_prompt", DEFAULT_ANALYSIS_PROMPT)
+        return self._prompts.get(LEAD_ANALYSIS_PROMPT_KEY, DEFAULT_ANALYSIS_PROMPT)
+    
+    # ----- Deal prompts -----
+    
+    def get_deal_system_prompt(self) -> str:
+        """Get the current deal system prompt."""
+        self._load_prompts()
+        defaults = _get_deal_defaults()
+        return self._prompts.get(DEAL_SYSTEM_PROMPT_KEY, defaults[DEAL_SYSTEM_PROMPT_KEY])
+    
+    def get_deal_analysis_prompt(self) -> str:
+        """Get the current deal analysis prompt template."""
+        self._load_prompts()
+        defaults = _get_deal_defaults()
+        return self._prompts.get(DEAL_ANALYSIS_PROMPT_KEY, defaults[DEAL_ANALYSIS_PROMPT_KEY])
+    
+    def get_deal_scoring_system_prompt(self) -> str:
+        """Get the current deal scoring system prompt."""
+        self._load_prompts()
+        defaults = _get_deal_defaults()
+        return self._prompts.get(DEAL_SCORING_SYSTEM_PROMPT_KEY, defaults[DEAL_SCORING_SYSTEM_PROMPT_KEY])
+    
+    def get_deal_scoring_prompt(self) -> str:
+        """Get the current deal scoring prompt template."""
+        self._load_prompts()
+        defaults = _get_deal_defaults()
+        return self._prompts.get(DEAL_SCORING_PROMPT_KEY, defaults[DEAL_SCORING_PROMPT_KEY])
+    
+    # ----- Bulk operations -----
     
     def get_all_prompts(self) -> Dict[str, str]:
-        """Get all prompts."""
+        """Get all prompts (leads + deals)."""
         self._load_prompts()
-        return {
-            "system_prompt": self._prompts.get("system_prompt", DEFAULT_SYSTEM_PROMPT),
-            "analysis_prompt": self._prompts.get("analysis_prompt", DEFAULT_ANALYSIS_PROMPT),
-        }
+        defaults = self._get_all_defaults()
+        return {key: self._prompts.get(key, default) for key, default in defaults.items()}
     
     def update_system_prompt(self, prompt: str) -> bool:
-        """Update the system prompt."""
+        """Update the lead system prompt."""
         self._load_prompts()
-        self._prompts["system_prompt"] = prompt
+        self._prompts[LEAD_SYSTEM_PROMPT_KEY] = prompt
         return self._save_prompts()
     
     def update_analysis_prompt(self, prompt: str) -> bool:
-        """Update the analysis prompt template."""
+        """Update the lead analysis prompt template."""
         self._load_prompts()
-        self._prompts["analysis_prompt"] = prompt
+        self._prompts[LEAD_ANALYSIS_PROMPT_KEY] = prompt
         return self._save_prompts()
     
-    def update_prompts(self, system_prompt: Optional[str] = None, analysis_prompt: Optional[str] = None) -> bool:
-        """Update one or both prompts."""
+    def update_prompts(self, **kwargs: Optional[str]) -> bool:
+        """
+        Update any combination of prompts.
+        
+        Accepted keys:
+        - system_prompt, analysis_prompt (leads)
+        - deal_system_prompt, deal_analysis_prompt (deals)
+        - deal_scoring_system_prompt, deal_scoring_prompt (deal scoring)
+        """
         self._load_prompts()
         
-        if system_prompt is not None:
-            self._prompts["system_prompt"] = system_prompt
-        if analysis_prompt is not None:
-            self._prompts["analysis_prompt"] = analysis_prompt
+        valid_keys = {
+            LEAD_SYSTEM_PROMPT_KEY, LEAD_ANALYSIS_PROMPT_KEY,
+            DEAL_SYSTEM_PROMPT_KEY, DEAL_ANALYSIS_PROMPT_KEY,
+            DEAL_SCORING_SYSTEM_PROMPT_KEY, DEAL_SCORING_PROMPT_KEY,
+        }
+        
+        for key, value in kwargs.items():
+            if key in valid_keys and value is not None:
+                self._prompts[key] = value
         
         return self._save_prompts()
     
     def reset_to_defaults(self) -> bool:
-        """Reset prompts to default values."""
-        self._prompts = {
-            "system_prompt": DEFAULT_SYSTEM_PROMPT,
-            "analysis_prompt": DEFAULT_ANALYSIS_PROMPT,
-        }
+        """Reset all prompts to default values."""
+        self._prompts = self._get_all_defaults()
         return self._save_prompts()
 
 

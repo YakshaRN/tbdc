@@ -14,6 +14,32 @@ class RevenueCustomer(BaseModel):
     description: str = Field(default="", description="Brief description of the customer relationship")
 
 
+class PricingLineItem(BaseModel):
+    """A single line item in the pricing summary."""
+    service_name: str = Field(..., description="Name of the service")
+    description: str = Field(default="", description="Brief description of the service")
+    category: str = Field(
+        default="core_service",
+        description="Category: core_service, customer_meeting, investor_meeting, additional_service"
+    )
+    quantity: int = Field(default=1, ge=1, description="Number of units")
+    unit_price_eur: float = Field(default=0, ge=0, description="Price per unit in EUR")
+    total_price_eur: float = Field(default=0, ge=0, description="Total price for this line item (quantity * unit_price)")
+
+
+class PricingSummary(BaseModel):
+    """Pricing summary with recommended services and total cost."""
+    recommended_services: List[PricingLineItem] = Field(
+        default_factory=list,
+        description="List of recommended services with pricing"
+    )
+    total_cost_eur: float = Field(default=0, ge=0, description="Total cost of all recommended services in EUR")
+    pricing_notes: List[str] = Field(
+        default_factory=list,
+        description="Notes explaining the pricing rationale"
+    )
+
+
 class DealAnalysis(BaseModel):
     """
     AI-generated analysis of a deal/company for TBDC Application module.
@@ -100,6 +126,12 @@ class DealAnalysis(BaseModel):
     support_recommendations: List[str] = Field(
         default_factory=list,
         description="Recommended support actions based on analysis"
+    )
+    
+    # Pricing Summary
+    pricing_summary: Optional[PricingSummary] = Field(
+        default=None,
+        description="Recommended TBDC services and pricing based on deal analysis"
     )
     
     # Insights and questions

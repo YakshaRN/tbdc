@@ -1,6 +1,6 @@
 "use client";
 
-import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, RevenueCustomer } from "@/types/deal";
+import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, RevenueCustomer, PricingSummary as PricingSummaryType, PricingLineItem } from "@/types/deal";
 import {
   Globe,
   Building2,
@@ -24,6 +24,9 @@ import {
   LifeBuoy,
   ClipboardList,
   MapPinned,
+  Receipt,
+  Package,
+  CircleDot,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -79,6 +82,27 @@ export function DealDetail({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Format EUR currency
+  const formatEUR = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Get category display label
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      core_service: "Core Service",
+      customer_meeting: "Customer Meeting",
+      investor_meeting: "Investor Meeting",
+      additional_service: "Additional Service",
+    };
+    return labels[category] || category;
   };
 
   return (
@@ -452,64 +476,105 @@ export function DealDetail({
             )}
           </DetailCard>
 
-          {/* ICP Mapping */}
+          {/* ICP Mapping - Pricing Summary */}
           <DetailCard title="ICP Mapping" icon={MapPinned} accentColor="blue">
             {isAnalysisLoading ? (
               <div className="space-y-3">
-                <div className="h-16 bg-gray-200 rounded-lg skeleton" />
-                <div className="h-12 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-8 bg-gray-200 rounded-lg skeleton mt-4" />
               </div>
-            ) : (
+            ) : analysis?.pricing_summary &&
+              analysis.pricing_summary.recommended_services &&
+              analysis.pricing_summary.recommended_services.length > 0 ? (
               <div className="space-y-4">
-                {/* Likely ICP Canada */}
-                {analysis?.likely_icp_canada && analysis.likely_icp_canada !== "Unknown" && (
-                  <div className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl border border-blue-200">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white shrink-0">
-                        <Target className="w-4 h-4" />
+                {/* Service Line Items */}
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                    <div className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Service</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Qty</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Unit Price</div>
+                    <div className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Total</div>
+                  </div>
+                  {/* Line Items */}
+                  {analysis.pricing_summary.recommended_services.map((item, index) => {
+                    const isIncluded = item.unit_price_eur === 0;
+                    const categoryLabel = getCategoryLabel(item.category);
+                    return (
+                      <div
+                        key={index}
+                        className={clsx(
+                          "grid grid-cols-12 gap-2 px-4 py-3 items-center",
+                          index % 2 === 0 ? "bg-white" : "bg-gray-50/50",
+                          index < analysis.pricing_summary!.recommended_services.length - 1 && "border-b border-gray-100"
+                        )}
+                      >
+                        <div className="col-span-5">
+                          <div className="flex items-start gap-2">
+                            <CircleDot className={clsx(
+                              "w-3.5 h-3.5 mt-0.5 flex-shrink-0",
+                              isIncluded ? "text-emerald-400" : "text-blue-400"
+                            )} />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 leading-tight">{item.service_name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{categoryLabel}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-span-2 text-sm text-gray-600 text-center">{item.quantity}</div>
+                        <div className="col-span-2 text-sm text-gray-600 text-right">
+                          {isIncluded ? (
+                            <span className="text-emerald-600 font-medium text-xs">Included</span>
+                          ) : (
+                            formatEUR(item.unit_price_eur)
+                          )}
+                        </div>
+                        <div className="col-span-3 text-sm font-medium text-right">
+                          {isIncluded ? (
+                            <span className="text-emerald-600 text-xs">EUR 0</span>
+                          ) : (
+                            <span className="text-gray-900">{formatEUR(item.total_price_eur)}</span>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-1">Likely ICP in Canada</p>
-                        <p className="text-sm text-gray-800 font-medium">{analysis.likely_icp_canada}</p>
-                      </div>
+                    );
+                  })}
+                  {/* Total Row */}
+                  <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200">
+                    <div className="col-span-9">
+                      <span className="text-sm font-bold text-gray-900">Estimated Total</span>
+                    </div>
+                    <div className="col-span-3 text-right">
+                      <span className="text-base font-bold text-blue-700">
+                        {formatEUR(analysis.pricing_summary.total_cost_eur)}
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* ICP Mapping Details */}
-                {analysis?.icp_mapping && analysis.icp_mapping !== "Unknown" && analysis.icp_mapping !== analysis.likely_icp_canada && (
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <label className="text-xs font-medium text-gray-500 block mb-1">
-                      ICP Details
-                    </label>
-                    <p className="text-sm text-gray-700">{analysis.icp_mapping}</p>
-                  </div>
-                )}
-
-                {/* Questions to Ask */}
-                {analysis?.questions_to_ask && analysis.questions_to_ask.length > 0 && (
-                  <div className="pt-3 border-t border-gray-100">
+                {/* Pricing Notes */}
+                {analysis.pricing_summary.pricing_notes &&
+                  analysis.pricing_summary.pricing_notes.length > 0 && (
+                  <div className="pt-2">
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
-                      Questions to Validate
+                      Pricing Rationale
                     </label>
-                    <ul className="space-y-2">
-                      {analysis.questions_to_ask.slice(0, 4).map((q, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                          <span className="text-blue-500 font-semibold flex-shrink-0">{i + 1}.</span>
-                          <span>{q}</span>
+                    <ul className="space-y-1.5">
+                      {analysis.pricing_summary.pricing_notes.map((note, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                          <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>
+                          <span>{note}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-
-                {/* Empty state */}
-                {(!analysis?.likely_icp_canada || analysis.likely_icp_canada === "Unknown") && 
-                 (!analysis?.icp_mapping || analysis.icp_mapping === "Unknown") && (
-                  <div className="text-sm text-gray-400 italic text-center py-4">
-                    ICP mapping not available
-                  </div>
-                )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic text-center py-4">
+                Pricing summary not available
               </div>
             )}
           </DetailCard>

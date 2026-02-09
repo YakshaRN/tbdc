@@ -281,15 +281,27 @@ export const dealsApi = {
 
 // Settings/Prompts types
 export interface PromptsData {
+  // Lead prompts
   system_prompt: string;
   analysis_prompt: string;
+  // Deal prompts
+  deal_system_prompt: string;
+  deal_analysis_prompt: string;
+  deal_scoring_system_prompt: string;
+  deal_scoring_prompt: string;
 }
 
 export interface PromptUpdateResponse {
   success: boolean;
   message: string;
+  // Lead prompts
   system_prompt: string;
   analysis_prompt: string;
+  // Deal prompts
+  deal_system_prompt: string;
+  deal_analysis_prompt: string;
+  deal_scoring_system_prompt: string;
+  deal_scoring_prompt: string;
 }
 
 export const settingsApi = {

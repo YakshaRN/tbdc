@@ -10,15 +10,54 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+type ModuleType = "leads" | "application";
+
+// Prompt tabs per module
+const LEAD_TABS = [
+  { key: "system_prompt" as const, label: "System Prompt", placeholder: "{lead_data}" },
+  { key: "analysis_prompt" as const, label: "Analysis Prompt", placeholder: "{lead_data}" },
+];
+
+const DEAL_TABS = [
+  { key: "deal_system_prompt" as const, label: "System Prompt", placeholder: "" },
+  { key: "deal_analysis_prompt" as const, label: "Analysis Prompt", placeholder: "{deal_data}" },
+  { key: "deal_scoring_system_prompt" as const, label: "Scoring System Prompt", placeholder: "" },
+  { key: "deal_scoring_prompt" as const, label: "Scoring Prompt", placeholder: "{deal_data}" },
+];
+
+type PromptKey = keyof PromptsData;
+
+const PROMPT_DESCRIPTIONS: Record<PromptKey, string> = {
+  system_prompt:
+    "Sets the context and role for the LLM when analyzing leads. Defines who the AI is and how it should behave.",
+  analysis_prompt:
+    "Template used for each lead analysis. Must contain {lead_data} as a placeholder for the lead information.",
+  deal_system_prompt:
+    "Sets the context and role for the LLM when analyzing deals/applications. Includes pricing catalog and evaluation rules.",
+  deal_analysis_prompt:
+    "Template used for each deal analysis. Must contain {deal_data} as a placeholder for the deal information.",
+  deal_scoring_system_prompt:
+    "Dedicated prompt that defines scoring criteria and rubric for the separate scoring LLM call.",
+  deal_scoring_prompt:
+    "Template for the scoring call. Must contain {deal_data} and {analysis_summary} placeholders.",
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [analysisPrompt, setAnalysisPrompt] = useState("");
+  const [prompts, setPrompts] = useState<PromptsData>({
+    system_prompt: "",
+    analysis_prompt: "",
+    deal_system_prompt: "",
+    deal_analysis_prompt: "",
+    deal_scoring_system_prompt: "",
+    deal_scoring_prompt: "",
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"system" | "analysis">("system");
+  const [activeModule, setActiveModule] = useState<ModuleType>("leads");
+  const [activePromptKey, setActivePromptKey] = useState<PromptKey>("system_prompt");
 
   // Load prompts when modal opens
   useEffect(() => {
@@ -27,13 +66,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [isOpen]);
 
+  // When switching modules, reset active tab to first prompt in that module
+  useEffect(() => {
+    if (activeModule === "leads") {
+      setActivePromptKey("system_prompt");
+    } else {
+      setActivePromptKey("deal_system_prompt");
+    }
+  }, [activeModule]);
+
   const loadPrompts = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const data = await settingsApi.getPrompts();
-      setSystemPrompt(data.system_prompt);
-      setAnalysisPrompt(data.analysis_prompt);
+      setPrompts(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load prompts");
     } finally {
@@ -46,11 +93,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setError(null);
     setSuccess(null);
     try {
-      await settingsApi.updatePrompts({
-        system_prompt: systemPrompt,
-        analysis_prompt: analysisPrompt,
+      const result = await settingsApi.updatePrompts(prompts);
+      setPrompts({
+        system_prompt: result.system_prompt,
+        analysis_prompt: result.analysis_prompt,
+        deal_system_prompt: result.deal_system_prompt,
+        deal_analysis_prompt: result.deal_analysis_prompt,
+        deal_scoring_system_prompt: result.deal_scoring_system_prompt,
+        deal_scoring_prompt: result.deal_scoring_prompt,
       });
-      setSuccess("Prompts saved successfully!");
+      setSuccess("All prompts saved successfully!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save prompts");
@@ -60,18 +112,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleReset = async () => {
-    if (!confirm("Are you sure you want to reset prompts to defaults? This cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to reset ALL prompts (Leads + Application) to defaults? This cannot be undone."
+      )
+    ) {
       return;
     }
-    
+
     setIsResetting(true);
     setError(null);
     setSuccess(null);
     try {
       const data = await settingsApi.resetPrompts();
-      setSystemPrompt(data.system_prompt);
-      setAnalysisPrompt(data.analysis_prompt);
-      setSuccess("Prompts reset to defaults!");
+      setPrompts({
+        system_prompt: data.system_prompt,
+        analysis_prompt: data.analysis_prompt,
+        deal_system_prompt: data.deal_system_prompt,
+        deal_analysis_prompt: data.deal_analysis_prompt,
+        deal_scoring_system_prompt: data.deal_scoring_system_prompt,
+        deal_scoring_prompt: data.deal_scoring_prompt,
+      });
+      setSuccess("All prompts reset to defaults!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset prompts");
@@ -80,25 +142,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const handlePromptChange = (key: PromptKey, value: string) => {
+    setPrompts((prev) => ({ ...prev, [key]: value }));
+  };
+
   if (!isOpen) return null;
+
+  const tabs = activeModule === "leads" ? LEAD_TABS : DEAL_TABS;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
-      />
-      
+      <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
+
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div 
-          className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl transform transition-all"
+        <div
+          className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
+            <h2 className="text-xl font-semibold text-gray-900">LLM Prompt Settings</h2>
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -107,30 +172,50 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </button>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 px-6">
+          {/* Module Selector */}
+          <div className="flex border-b border-gray-200 px-6 bg-gray-50">
             <button
-              onClick={() => setActiveTab("system")}
+              onClick={() => setActiveModule("leads")}
               className={clsx(
-                "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                activeTab === "system"
-                  ? "border-emerald-500 text-emerald-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                "px-5 py-3 text-sm font-semibold transition-colors rounded-t-lg",
+                activeModule === "leads"
+                  ? "bg-white text-emerald-700 border border-b-0 border-gray-200 -mb-px"
+                  : "text-gray-500 hover:text-gray-700"
               )}
             >
-              System Prompt
+              Leads Module
             </button>
             <button
-              onClick={() => setActiveTab("analysis")}
+              onClick={() => setActiveModule("application")}
               className={clsx(
-                "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                activeTab === "analysis"
-                  ? "border-emerald-500 text-emerald-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                "px-5 py-3 text-sm font-semibold transition-colors rounded-t-lg ml-1",
+                activeModule === "application"
+                  ? "bg-white text-blue-700 border border-b-0 border-gray-200 -mb-px"
+                  : "text-gray-500 hover:text-gray-700"
               )}
             >
-              Analysis Prompt
+              Application Module
             </button>
+          </div>
+
+          {/* Prompt Tabs */}
+          <div className="flex border-b border-gray-200 px-6 gap-1 overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActivePromptKey(tab.key)}
+                className={clsx(
+                  "px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap",
+                  activePromptKey === tab.key
+                    ? activeModule === "leads"
+                      ? "border-emerald-500 text-emerald-600"
+                      : "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* Content */}
@@ -141,51 +226,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
             ) : (
               <>
-                {/* System Prompt Tab */}
-                {activeTab === "system" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        System Prompt
-                      </label>
-                      <p className="text-xs text-gray-500 mb-3">
-                        This prompt sets the context and role for the LLM when analyzing leads.
-                        It defines who the AI is and how it should behave.
-                      </p>
-                      <textarea
-                        value={systemPrompt}
-                        onChange={(e) => setSystemPrompt(e.target.value)}
-                        className="w-full h-80 p-4 text-sm font-mono border border-gray-300 rounded-xl 
-                                   focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500
-                                   resize-none"
-                        placeholder="Enter system prompt..."
-                      />
-                    </div>
+                {/* Active Prompt Editor */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {tabs.find((t) => t.key === activePromptKey)?.label || activePromptKey}
+                    </label>
+                    <span
+                      className={clsx(
+                        "px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+                        activeModule === "leads"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-blue-100 text-blue-700"
+                      )}
+                    >
+                      {activeModule === "leads" ? "Leads" : "Application"}
+                    </span>
                   </div>
-                )}
-
-                {/* Analysis Prompt Tab */}
-                {activeTab === "analysis" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Analysis Prompt Template
-                      </label>
-                      <p className="text-xs text-gray-500 mb-3">
-                        This template is used for each lead analysis. Use <code className="bg-gray-100 px-1 rounded">{"{lead_data}"}</code> as 
-                        a placeholder for the lead information. The response format should define the expected JSON structure.
-                      </p>
-                      <textarea
-                        value={analysisPrompt}
-                        onChange={(e) => setAnalysisPrompt(e.target.value)}
-                        className="w-full h-80 p-4 text-sm font-mono border border-gray-300 rounded-xl 
-                                   focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500
-                                   resize-none"
-                        placeholder="Enter analysis prompt template..."
-                      />
-                    </div>
-                  </div>
-                )}
+                  <p className="text-xs text-gray-500">
+                    {PROMPT_DESCRIPTIONS[activePromptKey]}
+                  </p>
+                  <textarea
+                    value={prompts[activePromptKey]}
+                    onChange={(e) => handlePromptChange(activePromptKey, e.target.value)}
+                    className={clsx(
+                      "w-full h-80 p-4 text-sm font-mono border rounded-xl resize-none",
+                      "focus:outline-none focus:ring-2",
+                      activeModule === "leads"
+                        ? "border-gray-300 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
+                    )}
+                    placeholder="Enter prompt..."
+                  />
+                </div>
 
                 {/* Messages */}
                 {error && (
@@ -221,7 +294,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               ) : (
                 <RotateCcw className="w-4 h-4" />
               )}
-              Reset to Defaults
+              Reset All to Defaults
             </button>
 
             <div className="flex items-center gap-3">
@@ -245,7 +318,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                Save Changes
+                Save All Changes
               </button>
             </div>
           </div>

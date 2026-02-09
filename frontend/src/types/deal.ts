@@ -6,6 +6,23 @@ export interface RevenueCustomer {
   description: string;
 }
 
+// Pricing line item for recommended services
+export interface PricingLineItem {
+  service_name: string;
+  description: string;
+  category: string; // "core_service" | "customer_meeting" | "investor_meeting" | "additional_service"
+  quantity: number;
+  unit_price_eur: number;
+  total_price_eur: number;
+}
+
+// Pricing summary with recommended services and total cost
+export interface PricingSummary {
+  recommended_services: PricingLineItem[];
+  total_cost_eur: number;
+  pricing_notes: string[];
+}
+
 // AI-generated analysis for a deal
 export interface DealAnalysis {
   company_name?: string;
@@ -29,6 +46,8 @@ export interface DealAnalysis {
   likely_icp_canada?: string;
   support_required?: string;
   support_recommendations?: string[];
+  // Pricing
+  pricing_summary?: PricingSummary;
   // Insights
   key_insights?: string[];
   questions_to_ask?: string[];

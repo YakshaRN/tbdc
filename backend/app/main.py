@@ -11,6 +11,7 @@ from app.middleware.zoho_token import ZohoTokenMiddleware
 from app.api.v1.router import api_router
 from app.services.zoho.token_manager import zoho_token_manager
 from app.services.dynamodb.lead_cache import lead_analysis_cache
+from app.services.dynamodb.deal_cache import deal_analysis_cache
 
 
 @asynccontextmanager
@@ -21,16 +22,27 @@ async def lifespan(app: FastAPI):
     # Startup: Initialize Zoho token manager
     await zoho_token_manager.initialize()
     
-    # Startup: Initialize DynamoDB table for lead analysis caching
+    # Startup: Initialize DynamoDB tables for caching
     if lead_analysis_cache.is_enabled:
-        logger.info("DynamoDB caching is ENABLED, initializing table...")
+        logger.info("DynamoDB caching is ENABLED, initializing tables...")
+        
+        # Initialize lead analysis table
         try:
             if lead_analysis_cache.ensure_table_exists():
-                logger.info(f"DynamoDB table '{settings.DYNAMODB_TABLE_NAME}' is ready")
+                logger.info(f"DynamoDB lead table '{settings.DYNAMODB_TABLE_NAME}' is ready")
             else:
-                logger.warning("DynamoDB table initialization failed - caching may not work")
+                logger.warning("DynamoDB lead table initialization failed - caching may not work")
         except Exception as e:
-            logger.error(f"Error initializing DynamoDB table: {e}")
+            logger.error(f"Error initializing DynamoDB lead table: {e}")
+        
+        # Initialize deal analysis table
+        try:
+            if deal_analysis_cache.ensure_table_exists():
+                logger.info(f"DynamoDB deal table '{settings.DYNAMODB_DEAL_TABLE_NAME}' is ready")
+            else:
+                logger.warning("DynamoDB deal table initialization failed - deal caching may not work")
+        except Exception as e:
+            logger.error(f"Error initializing DynamoDB deal table: {e}")
     else:
         logger.warning("DynamoDB caching is DISABLED - check AWS credentials and DYNAMODB_ENABLED setting")
         logger.info(f"  DYNAMODB_ENABLED: {settings.DYNAMODB_ENABLED}")
@@ -86,9 +98,22 @@ async def health_check():
 
 @app.get("/health/cache")
 async def cache_health_check():
-    """Check DynamoDB cache status."""
-    cache_status = lead_analysis_cache.get_status()
+    """Check DynamoDB cache status for leads and deals."""
+    lead_cache_status = lead_analysis_cache.get_status()
+    deal_cache_status = deal_analysis_cache.get_status()
+    
+    lead_healthy = lead_cache_status.get("table_exists", False)
+    deal_healthy = deal_cache_status.get("table_exists", False)
+    
+    if lead_healthy and deal_healthy:
+        overall_status = "healthy"
+    elif lead_healthy or deal_healthy:
+        overall_status = "degraded"
+    else:
+        overall_status = "unhealthy"
+    
     return {
-        "status": "healthy" if cache_status.get("table_exists") else "degraded",
-        "cache": cache_status,
+        "status": overall_status,
+        "lead_cache": lead_cache_status,
+        "deal_cache": deal_cache_status,
     }

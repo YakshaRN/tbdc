@@ -342,11 +342,81 @@ async def delete_lead(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# @router.get("/search/")
+# async def search_leads(
+#     email: Optional[str] = Query(None, description="Search by email"),
+#     phone: Optional[str] = Query(None, description="Search by phone"),
+#     company: Optional[str] = Query(None, description="Search by company"),
+#     criteria: Optional[str] = Query(
+#         None,
+#         description="Custom Zoho search criteria"
+#     ),
+#     page: int = Query(1, ge=1),
+#     per_page: int = Query(50, ge=1, le=200),
+# ):
+#     """
+#     Search leads with various criteria.
+    
+#     You can use predefined search params (email, phone, company) or
+#     provide a custom Zoho criteria string.
+    
+#     Example criteria: "(Email:equals:test@example.com)"
+#     """
+#     try:
+#         # Build criteria from params
+#         if criteria:
+#             search_criteria = criteria
+#         else:
+#             conditions = []
+#             if email:
+#                 conditions.append(f'(Email:equals:{email})')
+#             if phone:
+#                 conditions.append(f'(Phone:equals:{phone})')
+#             if company:
+#                 conditions.append(f'(Company:equals:{company})')
+
+            
+#             if not conditions:
+#                 raise HTTPException(
+#                     status_code=400,
+#                     detail="At least one search parameter is required"
+#                 )
+            
+#             # search_criteria = "and".join(conditions) if len(conditions) > 1 else conditions[0]
+#             if len(conditions) > 1:
+#                 search_criteria = f"({'and'.join(conditions)})"
+#             else:
+#                 search_criteria = conditions[0]
+        
+#         logger.info(f"Search criteria: {search_criteria}")
+#         result = await zoho_crm_service.search_leads(
+#             criteria=search_criteria,
+#             page=page,
+#             per_page=per_page,
+#         )
+        
+#         return {
+#             "data": result.get("data", []),
+#             "info": result.get("info", {}),
+#         }
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error searching leads: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/search/")
 async def search_leads(
-    email: Optional[str] = Query(None, description="Search by email"),
-    phone: Optional[str] = Query(None, description="Search by phone"),
-    company: Optional[str] = Query(None, description="Search by company"),
+    search_query: Optional[str] = Query(
+        None, 
+        description="Search across name, email, and company"
+    ),
+    email: Optional[str] = Query(None, description="Search by email only"),
+    phone: Optional[str] = Query(None, description="Search by phone only"),
+    company: Optional[str] = Query(None, description="Search by company only"),
+    name: Optional[str] = Query(None, description="Search by name only"),
     criteria: Optional[str] = Query(
         None,
         description="Custom Zoho search criteria"
@@ -356,24 +426,39 @@ async def search_leads(
 ):
     """
     Search leads with various criteria.
-    
-    You can use predefined search params (email, phone, company) or
-    provide a custom Zoho criteria string.
-    
-    Example criteria: "(Email:equals:test@example.com)"
     """
     try:
         # Build criteria from params
         if criteria:
             search_criteria = criteria
+        elif search_query:
+            # FIXED: Proper OR formatting for Zoho CRM
+            # Each condition needs proper parentheses and 'or' between them
+            conditions = [
+                f"(First_Name:starts_with:{search_query})",
+                f"(Last_Name:starts_with:{search_query})",
+                f"(Email:starts_with:{search_query})",  # Changed from contains
+                f"(Company:starts_with:{search_query})",
+            ]
+            # Join with ' or ' (note the spaces)
+            search_criteria = "((" + ")or(".join(conditions) + "))"
+            
         else:
+            # Individual field searches
             conditions = []
+            if name:
+                name_conditions = [
+                    f"(First_Name:starts_with:{name})",
+                    f"(Last_Name:starts_with:{name})",
+                ]
+                # For name search with OR
+                conditions.append("((" + ")or(".join(name_conditions) + "))")
             if email:
                 conditions.append(f"(Email:equals:{email})")
             if phone:
                 conditions.append(f"(Phone:equals:{phone})")
             if company:
-                conditions.append(f"(Company:contains:{company})")
+                conditions.append(f"(Company:equals:{company})")
             
             if not conditions:
                 raise HTTPException(
@@ -381,8 +466,13 @@ async def search_leads(
                     detail="At least one search parameter is required"
                 )
             
-            search_criteria = "and".join(conditions) if len(conditions) > 1 else conditions[0]
+            # Join multiple conditions with 'and'
+            if len(conditions) > 1:
+                search_criteria = "((" + ")and(".join(conditions) + "))"
+            else:
+                search_criteria = conditions[0]
         
+        logger.info(f"Search criteria: {search_criteria}")
         result = await zoho_crm_service.search_leads(
             criteria=search_criteria,
             page=page,

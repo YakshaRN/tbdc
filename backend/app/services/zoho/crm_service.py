@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import ZohoAPIException, RateLimitException
 
 
+
 class ZohoCRMService:
     """
     Service class for Zoho CRM API operations.
@@ -100,6 +101,7 @@ class ZohoCRMService:
         url = f"{self._get_base_url()}{endpoint}"
         
         logger.debug(f"Zoho API Request: {method} {url}")
+        logger.debug(f"Params: {params}")
         
         try:
             response = await client.request(
@@ -253,6 +255,7 @@ class ZohoCRMService:
         """
         # Use default fields if none specified (required in Zoho CRM API v7)
         field_list = fields if fields else self.DEFAULT_LEAD_FIELDS
+
         
         params = {
             "criteria": criteria,

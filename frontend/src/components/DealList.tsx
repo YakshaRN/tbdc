@@ -10,6 +10,7 @@ interface DealListProps {
   onSelectDeal: (deal: Deal) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onSearchSubmit?: (query: string) => void;
   isLoading?: boolean;
   // Pagination props
   currentPage?: number;
@@ -27,6 +28,7 @@ export function DealList({
   onSelectDeal,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   isLoading = false,
   currentPage = 1,
   totalCount = 0,
@@ -74,6 +76,14 @@ export function DealList({
             placeholder="Search by name, account, or stage..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (onSearchSubmit) {
+                  onSearchSubmit(searchQuery);
+                }
+              }
+            }}
             className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl 
                      focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
                      placeholder:text-gray-400 bg-white"

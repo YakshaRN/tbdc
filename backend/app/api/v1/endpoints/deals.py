@@ -355,10 +355,75 @@ async def delete_deal(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# @router.get("/search/")
+# async def search_deals(
+#     deal_name: Optional[str] = Query(None, description="Search by deal name"),
+#     account_name: Optional[str] = Query(None, description="Search by account name"),
+#     stage: Optional[str] = Query(None, description="Search by stage"),
+#     criteria: Optional[str] = Query(
+#         None,
+#         description="Custom Zoho search criteria"
+#     ),
+#     page: int = Query(1, ge=1),
+#     per_page: int = Query(50, ge=1, le=200),
+# ):
+
+#     """
+#     Search deals with various criteria.
+    
+#     You can use predefined search params (deal_name, account_name, stage) or
+#     provide a custom Zoho criteria string.
+    
+#     Example criteria: "(Stage:equals:Qualification)"
+#     """
+#     try:
+#         # Build criteria from params
+#         if criteria:
+#             search_criteria = criteria
+#         else:
+#             conditions = []
+#             if deal_name:
+#                 conditions.append(f"(Deal_Name:contains:{deal_name})")
+#             if account_name:
+#                 conditions.append(f"(Account_Name:contains:{account_name})")
+#             if stage:
+#                 conditions.append(f"(Stage:equals:{stage})")
+            
+#             if not conditions:
+#                 raise HTTPException(
+#                     status_code=400,
+#                     detail="At least one search parameter is required"
+#                 )
+            
+#             search_criteria = "and".join(conditions) if len(conditions) > 1 else conditions[0]
+        
+#         result = await zoho_crm_service.search_deals(
+#             criteria=search_criteria,
+#             page=page,
+#             per_page=per_page,
+#         )
+        
+#         return {
+#             "data": result.get("data", []),
+#             "info": result.get("info", {}),
+#         }
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error searching deals: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/search/")
 async def search_deals(
+    search_query: Optional[str] = Query(
+        None, 
+        description="Search across deal name, account name, and contact name"
+    ),
     deal_name: Optional[str] = Query(None, description="Search by deal name"),
     account_name: Optional[str] = Query(None, description="Search by account name"),
+    contact_name: Optional[str] = Query(None, description="Search by contact name"),
     stage: Optional[str] = Query(None, description="Search by stage"),
     criteria: Optional[str] = Query(
         None,
@@ -370,21 +435,35 @@ async def search_deals(
     """
     Search deals with various criteria.
     
-    You can use predefined search params (deal_name, account_name, stage) or
-    provide a custom Zoho criteria string.
+    - Use search_query for broad search across deal name, account name, and contact name
+    - Use specific params (deal_name, account_name, stage) for targeted search
+    - Or provide custom Zoho criteria string
     
-    Example criteria: "(Stage:equals:Qualification)"
+    Example: /search/?search_query=Acme
     """
     try:
         # Build criteria from params
         if criteria:
             search_criteria = criteria
+        elif search_query:
+            # Search across multiple fields using OR
+            conditions = [
+                f"(Deal_Name:starts_with:{search_query})",
+                f"(Account_Name:starts_with:{search_query})",
+                f"(Contact_Name:starts_with:{search_query})",
+            ]
+            # Proper OR formatting: (((condition1)or(condition2)or(condition3)))
+            search_criteria = "((" + ")or(".join(conditions) + "))"
+            
         else:
+            # Individual field searches
             conditions = []
             if deal_name:
-                conditions.append(f"(Deal_Name:contains:{deal_name})")
+                conditions.append(f"(Deal_Name:starts_with:{deal_name})")
             if account_name:
-                conditions.append(f"(Account_Name:contains:{account_name})")
+                conditions.append(f"(Account_Name:starts_with:{account_name})")
+            if contact_name:
+                conditions.append(f"(Contact_Name:starts_with:{contact_name})")
             if stage:
                 conditions.append(f"(Stage:equals:{stage})")
             
@@ -394,8 +473,13 @@ async def search_deals(
                     detail="At least one search parameter is required"
                 )
             
-            search_criteria = "and".join(conditions) if len(conditions) > 1 else conditions[0]
+            # Properly format multiple conditions with AND
+            if len(conditions) > 1:
+                search_criteria = "((" + ")and(".join(conditions) + "))"
+            else:
+                search_criteria = conditions[0]
         
+        logger.info(f"Search criteria: {search_criteria}")
         result = await zoho_crm_service.search_deals(
             criteria=search_criteria,
             page=page,

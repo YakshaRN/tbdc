@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { LeadList, LeadDetail, DealList, DealDetail, Header, WebsitePreview, SettingsModal, TabType } from "@/components";
+import { LeadList, LeadDetail, DealList, DealDetail, Header, SettingsModal, TabType } from "@/components";
 import { Lead, LeadAnalysis, MarketingMaterial, SimilarCustomer } from "@/types/lead";
 import { Deal, DealAnalysis, MarketingMaterial as DealMarketingMaterial, SimilarCustomer as DealSimilarCustomer } from "@/types/deal";
-import { leadsApi, dealsApi, webApi, WebsiteData } from "@/lib/api";
+import { leadsApi, dealsApi, webApi } from "@/lib/api";
 import { AlertCircle, RefreshCcw, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -55,9 +55,8 @@ export default function Dashboard() {
   // ==================== SHARED STATE ====================
   const [error, setError] = useState<string | null>(null);
   
-  // Website scraping state (leads only)
-  const [websiteData, setWebsiteData] = useState<WebsiteData | null>(null);
-  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+  // Website URL evaluation state (leads only)
+  const [isEvaluatingUrl, setIsEvaluatingUrl] = useState(false);
   
   // Settings modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -70,41 +69,157 @@ export default function Dashboard() {
   }, [authLoading, isAuthenticated, router]);
 
   // ==================== LEADS FUNCTIONS ====================
-  const fetchLeads = useCallback(async (page: number = 1, showRefreshing = false) => {
-    try {
-      if (showRefreshing) {
-        setIsLeadsRefreshing(true);
-      } else {
-        setIsLeadsLoading(true);
+  const fetchLeads = useCallback(
+    async (page: number = 1, showRefreshing = false) => {
+      try {
+        if (showRefreshing) {
+          setIsLeadsRefreshing(true);
+        } else {
+          setIsLeadsLoading(true);
+        }
+        setError(null);
+
+        const response = await leadsApi.getLeads({
+          page,
+          per_page: LEADS_PER_PAGE,
+          sort_by: "Modified_Time",
+          sort_order: "desc",
+        });
+
+        setLeads(response.data);
+        setLeadsCurrentPage(response.page);
+        setLeadsTotalCount(response.total_count);
+        setLeadsHasMoreRecords(response.more_records);
+
+        if (selectedLead) {
+          const updatedLead = response.data.find((l) => l.id === selectedLead.id);
+          if (updatedLead) {
+            setSelectedLead(updatedLead);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch leads:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch leads");
+      } finally {
+        setIsLeadsLoading(false);
+        setIsLeadsRefreshing(false);
       }
+    },
+    [selectedLead]
+  );
+
+  // Helper to detect if a string looks like a URL/domain
+  const isUrlLike = useCallback((str: string): boolean => {
+    const trimmed = str.trim();
+    if (!trimmed) return false;
+    const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
+    return urlPattern.test(trimmed);
+  }, []);
+
+  // Auto-evaluate a website URL: scrape + LLM + cache (one-shot)
+  const evaluateWebsiteUrl = useCallback(
+    async (url: string) => {
+      setIsEvaluatingUrl(true);
+      setIsLeadAnalysisLoading(true);
+      setSelectedLead(null);
+      setSelectedLeadAnalysis(null);
+      setSelectedLeadMaterials([]);
+      setSelectedLeadSimilarCustomers([]);
       setError(null);
 
-      const response = await leadsApi.getLeads({
-        page,
-        per_page: LEADS_PER_PAGE,
-        sort_by: "Modified_Time",
-        sort_order: "desc",
-      });
+      try {
+        const result = await webApi.evaluateUrl(url);
 
-      setLeads(response.data);
-      setLeadsCurrentPage(response.page);
-      setLeadsTotalCount(response.total_count);
-      setLeadsHasMoreRecords(response.more_records);
+        if (result.analysis_available && result.analysis) {
+          // Build a Lead object from the response
+          const websiteLead: Lead = {
+            id: result.data.id || `website_${url}`,
+            Company: result.data.Company || url,
+            Website: result.data.Website || url,
+            Email: result.data.Email || "",
+            Phone: result.data.Phone || "",
+            First_Name: "",
+            Last_Name: "",
+            Lead_Source: "Website Search",
+            Description: result.data.Description || "",
+            _source: "website",
+            _logo_url: result.data._logo_url,
+          } as Lead;
 
-      if (selectedLead) {
-        const updatedLead = response.data.find((l) => l.id === selectedLead.id);
-        if (updatedLead) {
-          setSelectedLead(updatedLead);
+          setSelectedLead(websiteLead);
+          setSelectedLeadAnalysis(result.analysis);
+          setSelectedLeadMaterials(result.marketing_materials || []);
+          setSelectedLeadSimilarCustomers(result.similar_customers || []);
+        } else {
+          setError("Website evaluation failed — no analysis returned.");
         }
+      } catch (err) {
+        console.error("Failed to evaluate website:", err);
+        setError(err instanceof Error ? err.message : "Failed to evaluate website");
+      } finally {
+        setIsEvaluatingUrl(false);
+        setIsLeadAnalysisLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch leads:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch leads");
-    } finally {
-      setIsLeadsLoading(false);
-      setIsLeadsRefreshing(false);
-    }
-  }, [selectedLead]);
+    },
+    []
+  );
+
+  // Backend-powered search across ALL leads (not just current page)
+  const searchLeads = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        // If query cleared, reset to first page of normal list
+        fetchLeads(1);
+        return;
+      }
+
+      // If it looks like a URL, auto-evaluate it instead of searching Zoho
+      if (isUrlLike(trimmed)) {
+        evaluateWebsiteUrl(trimmed);
+        return;
+      }
+
+      // Avoid Zoho "Invalid query formed" for very short search terms
+      if (trimmed.length < 3 && !trimmed.includes("@")) {
+        setError("Please enter at least 3 characters to search leads.");
+        return;
+      }
+
+      try {
+        setIsLeadsLoading(true);
+        setError(null);
+
+        const params: {
+          email?: string;
+          phone?: string;
+          company?: string;
+          page?: number;
+          per_page?: number;
+          search_query?: string;
+        } = {
+          per_page: LEADS_PER_PAGE,
+        };
+
+        params.search_query = trimmed;
+
+        const result = await leadsApi.searchLeads(params);
+        const data = (result as any).data || [];
+
+        setLeads(data);
+        setLeadsCurrentPage(1);
+        setLeadsTotalCount(data.length);
+        setLeadsHasMoreRecords(false);
+      } catch (err) {
+        console.error("Failed to search leads:", err);
+        setError(err instanceof Error ? err.message : "Failed to search leads");
+      } finally {
+        setIsLeadsLoading(false);
+        setIsLeadsRefreshing(false);
+      }
+    },
+    [fetchLeads, isUrlLike, evaluateWebsiteUrl]
+  );
 
   const handleSelectLead = async (lead: Lead) => {
     setSelectedLead(lead);
@@ -159,41 +274,85 @@ export default function Dashboard() {
   };
 
   // ==================== DEALS FUNCTIONS ====================
-  const fetchDeals = useCallback(async (page: number = 1, showRefreshing = false) => {
-    try {
-      if (showRefreshing) {
-        setIsDealsRefreshing(true);
-      } else {
-        setIsDealsLoading(true);
-      }
-      setError(null);
-
-      const response = await dealsApi.getDeals({
-        page,
-        per_page: DEALS_PER_PAGE,
-        sort_by: "Modified_Time",
-        sort_order: "desc",
-      });
-
-      setDeals(response.data);
-      setDealsCurrentPage(response.page);
-      setDealsTotalCount(response.total_count);
-      setDealsHasMoreRecords(response.more_records);
-
-      if (selectedDeal) {
-        const updatedDeal = response.data.find((d) => d.id === selectedDeal.id);
-        if (updatedDeal) {
-          setSelectedDeal(updatedDeal);
+  const fetchDeals = useCallback(
+    async (page: number = 1, showRefreshing = false) => {
+      try {
+        if (showRefreshing) {
+          setIsDealsRefreshing(true);
+        } else {
+          setIsDealsLoading(true);
         }
+        setError(null);
+
+        const response = await dealsApi.getDeals({
+          page,
+          per_page: DEALS_PER_PAGE,
+          sort_by: "Modified_Time",
+          sort_order: "desc",
+        });
+
+        setDeals(response.data);
+        setDealsCurrentPage(response.page);
+        setDealsTotalCount(response.total_count);
+        setDealsHasMoreRecords(response.more_records);
+
+        if (selectedDeal) {
+          const updatedDeal = response.data.find((d) => d.id === selectedDeal.id);
+          if (updatedDeal) {
+            setSelectedDeal(updatedDeal);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch deals:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch deals");
+      } finally {
+        setIsDealsLoading(false);
+        setIsDealsRefreshing(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch deals:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch deals");
-    } finally {
-      setIsDealsLoading(false);
-      setIsDealsRefreshing(false);
-    }
-  }, [selectedDeal]);
+    },
+    [selectedDeal]
+  );
+
+  // Backend-powered search across ALL deals (not just current page)
+  const searchDeals = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        // If query cleared, reset to first page of normal list
+        fetchDeals(1);
+        return;
+      }
+
+      // Avoid Zoho "Invalid query formed" for very short search terms
+      if (trimmed.length < 3) {
+        setError("Please enter at least 3 characters to search deals.");
+        return;
+      }
+
+      try {
+        setIsDealsLoading(true);
+        setError(null);
+
+        const result = await dealsApi.searchDeals({
+          search_query: trimmed,
+          per_page: DEALS_PER_PAGE,
+        });
+        const data = (result as any).data || [];
+
+        setDeals(data);
+        setDealsCurrentPage(1);
+        setDealsTotalCount(data.length);
+        setDealsHasMoreRecords(false);
+      } catch (err) {
+        console.error("Failed to search deals:", err);
+        setError(err instanceof Error ? err.message : "Failed to search deals");
+      } finally {
+        setIsDealsLoading(false);
+        setIsDealsRefreshing(false);
+      }
+    },
+    [fetchDeals]
+  );
 
   const handleSelectDeal = async (deal: Deal) => {
     setSelectedDeal(deal);
@@ -264,49 +423,6 @@ export default function Dashboard() {
     if (tab === "application" && deals.length === 0 && !isDealsLoading) {
       fetchDeals();
     }
-  };
-
-  // Website scraping functions (leads only)
-  const handleFetchUrl = async (url: string) => {
-    setIsFetchingUrl(true);
-    setWebsiteData(null);
-    setSelectedLead(null);
-    setSelectedLeadAnalysis(null);
-    setSelectedLeadMaterials([]);
-    setError(null);
-
-    try {
-      const data = await webApi.fetchWebsiteData(url);
-      setWebsiteData(data);
-      
-      if (!data.success) {
-        setError(data.error || "Failed to fetch website data");
-      }
-    } catch (err) {
-      console.error("Failed to fetch website:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch website");
-    } finally {
-      setIsFetchingUrl(false);
-    }
-  };
-
-  const handleClearWebsiteData = () => {
-    setWebsiteData(null);
-    setLeadSearchQuery("");
-  };
-
-  const handleWebsiteEvaluate = (
-    lead: Lead,
-    analysis: LeadAnalysis,
-    materials: MarketingMaterial[],
-    customers: SimilarCustomer[]
-  ) => {
-    setWebsiteData(null);
-    setSelectedLead(lead);
-    setSelectedLeadAnalysis(analysis);
-    setSelectedLeadMaterials(materials);
-    setSelectedLeadSimilarCustomers(customers);
-    setIsLeadAnalysisLoading(false);
   };
 
   // Initial data fetch
@@ -392,20 +508,19 @@ export default function Dashboard() {
               <LeadList
                 leads={leads}
                 selectedLeadId={selectedLead?.id ?? null}
-                onSelectLead={(lead) => {
-                  setWebsiteData(null);
-                  handleSelectLead(lead);
-                }}
+                onSelectLead={handleSelectLead}
                 searchQuery={leadSearchQuery}
                 onSearchChange={(query) => {
                   setLeadSearchQuery(query);
-                  if (!query) {
-                    setWebsiteData(null);
+
+                  if (!query.trim()) {
+                    // Reset to normal paginated list when search cleared
+                    fetchLeads(1);
                   }
                 }}
+                onSearchSubmit={searchLeads}
                 isLoading={isLeadsLoading}
-                onFetchUrl={handleFetchUrl}
-                isFetchingUrl={isFetchingUrl}
+                isEvaluatingUrl={isEvaluatingUrl}
                 currentPage={leadsCurrentPage}
                 totalCount={leadsTotalCount}
                 perPage={LEADS_PER_PAGE}
@@ -416,26 +531,18 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Right Panel - Lead Detail or Website Preview */}
+            {/* Right Panel - Lead Detail */}
             <div className="flex-1 overflow-hidden">
-              {websiteData ? (
-                <WebsitePreview 
-                  data={websiteData}
-                  onClose={handleClearWebsiteData}
-                  onEvaluate={handleWebsiteEvaluate}
-                />
-              ) : (
-                <LeadDetail 
-                  lead={selectedLead} 
-                  analysis={selectedLeadAnalysis}
-                  marketingMaterials={selectedLeadMaterials}
-                  similarCustomers={selectedLeadSimilarCustomers}
-                  isLoading={isLeadsLoading && !selectedLead}
-                  isAnalysisLoading={isLeadAnalysisLoading}
-                  isReevaluating={isLeadReevaluating}
-                  onReevaluate={handleLeadReevaluate}
-                />
-              )}
+              <LeadDetail 
+                lead={selectedLead} 
+                analysis={selectedLeadAnalysis}
+                marketingMaterials={selectedLeadMaterials}
+                similarCustomers={selectedLeadSimilarCustomers}
+                isLoading={isLeadsLoading && !selectedLead}
+                isAnalysisLoading={isLeadAnalysisLoading}
+                isReevaluating={isLeadReevaluating}
+                onReevaluate={handleLeadReevaluate}
+              />
             </div>
           </>
         ) : (
@@ -447,7 +554,14 @@ export default function Dashboard() {
                 selectedDealId={selectedDeal?.id ?? null}
                 onSelectDeal={handleSelectDeal}
                 searchQuery={dealSearchQuery}
-                onSearchChange={setDealSearchQuery}
+                onSearchChange={(query) => {
+                  setDealSearchQuery(query);
+                  if (!query.trim()) {
+                    // Reset to normal paginated list when search cleared
+                    fetchDeals(1);
+                  }
+                }}
+                onSearchSubmit={searchDeals}
                 isLoading={isDealsLoading}
                 currentPage={dealsCurrentPage}
                 totalCount={dealsTotalCount}

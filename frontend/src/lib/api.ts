@@ -95,6 +95,14 @@ export const webApi = {
 
     return response.json();
   },
+
+  /**
+   * One-shot evaluate: scrape + LLM analyze + DynamoDB cache.
+   * Returns cached result if already evaluated, otherwise scrapes & analyzes fresh.
+   */
+  async evaluateUrl(url: string): Promise<LeadResponse> {
+    return fetchApi<LeadResponse>(`/web/evaluate?url=${encodeURIComponent(url)}`);
+  },
 };
 
 export const leadsApi = {
@@ -144,6 +152,7 @@ export const leadsApi = {
     criteria?: string;
     page?: number;
     per_page?: number;
+    search_query?: string;
   }): Promise<{ data: Lead[]; info: Record<string, unknown> }> {
     const searchParams = new URLSearchParams();
     
@@ -153,6 +162,7 @@ export const leadsApi = {
     if (params.criteria) searchParams.set("criteria", params.criteria);
     if (params.page) searchParams.set("page", params.page.toString());
     if (params.per_page) searchParams.set("per_page", params.per_page.toString());
+    if (params.search_query) searchParams.set("search_query", params.search_query);
 
     return fetchApi(`/leads/search/?${searchParams.toString()}`);
   },
@@ -236,6 +246,7 @@ export const dealsApi = {
     criteria?: string;
     page?: number;
     per_page?: number;
+    search_query?: string;
   }): Promise<{ data: Deal[]; info: Record<string, unknown> }> {
     const searchParams = new URLSearchParams();
     
@@ -245,6 +256,7 @@ export const dealsApi = {
     if (params.criteria) searchParams.set("criteria", params.criteria);
     if (params.page) searchParams.set("page", params.page.toString());
     if (params.per_page) searchParams.set("per_page", params.per_page.toString());
+    if (params.search_query) searchParams.set("search_query", params.search_query);
 
     return fetchApi(`/deals/search/?${searchParams.toString()}`);
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { Lead } from "@/types/lead";
-import { Search, Building2, Mail, Phone, Globe, ChevronRight, Users, ExternalLink, Loader2, ChevronLeft } from "lucide-react";
+import { Search, Building2, Mail, ChevronRight, Users, Loader2, ChevronLeft } from "lucide-react";
 import clsx from "clsx";
 
 interface LeadListProps {
@@ -10,9 +10,9 @@ interface LeadListProps {
   onSelectLead: (lead: Lead) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onSearchSubmit?: (query: string) => void;
   isLoading?: boolean;
-  onFetchUrl?: (url: string) => void;
-  isFetchingUrl?: boolean;
+  isEvaluatingUrl?: boolean;
   // Pagination props
   currentPage?: number;
   totalCount?: number;
@@ -23,25 +23,15 @@ interface LeadListProps {
   onGoToPage?: (page: number) => void;
 }
 
-// Helper to check if string looks like a URL
-function isValidUrl(str: string): boolean {
-  const trimmed = str.trim();
-  if (!trimmed) return false;
-  
-  // Check for common URL patterns
-  const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
-  return urlPattern.test(trimmed);
-}
-
 export function LeadList({
   leads,
   selectedLeadId,
   onSelectLead,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   isLoading = false,
-  onFetchUrl,
-  isFetchingUrl = false,
+  isEvaluatingUrl = false,
   currentPage = 1,
   totalCount = 0,
   perPage = 100,
@@ -58,8 +48,6 @@ export function LeadList({
     const email = (lead.Email || "").toLowerCase();
     return fullName.includes(query) || company.includes(query) || email.includes(query);
   });
-
-  const showUrlOption = searchQuery && filteredLeads.length === 0 && isValidUrl(searchQuery);
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
@@ -86,9 +74,17 @@ export function LeadList({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, company, or email..."
+            placeholder="Search by name, company, email, or website URL..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (onSearchSubmit) {
+                  onSearchSubmit(searchQuery);
+                }
+              }
+            }}
             className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl 
                      focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500
                      placeholder:text-gray-400 bg-white"
@@ -98,7 +94,21 @@ export function LeadList({
 
       {/* Lead List */}
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
+        {isEvaluatingUrl ? (
+          // Website evaluation in progress
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div className="p-4 rounded-full bg-emerald-100 mb-4">
+              <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Evaluating Website</h3>
+            <p className="text-xs text-gray-500 mb-2 max-w-[220px]">
+              Scraping website data and running AI analysis...
+            </p>
+            <p className="text-[11px] text-gray-400">
+              This may take a few seconds
+            </p>
+          </div>
+        ) : isLoading ? (
           // Loading skeletons
           <div className="p-2 space-y-2">
             {[...Array(8)].map((_, i) => (
@@ -116,52 +126,15 @@ export function LeadList({
         ) : filteredLeads.length === 0 ? (
           // Empty state
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            {showUrlOption ? (
-              // URL detected - show fetch option
-              <>
-                <div className="p-4 rounded-full bg-blue-100 mb-4">
-                  <Globe className="w-8 h-8 text-blue-500" />
-                </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">No matching leads</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                  This looks like a website URL. Would you like to fetch company information?
-                </p>
-                <button
-                  onClick={() => onFetchUrl?.(searchQuery)}
-                  disabled={isFetchingUrl}
-                  className={clsx(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all",
-                    "bg-blue-600 text-white hover:bg-blue-700",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
-                  )}
-                >
-                  {isFetchingUrl ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4" />
-                      Fetch Website Data
-                    </>
-                  )}
-                </button>
-              </>
-            ) : (
-              // Regular empty state
-              <>
-                <div className="p-4 rounded-full bg-gray-100 mb-4">
-                  <Search className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">No leads found</h3>
-                <p className="text-xs text-gray-500">
-                  {searchQuery
-                    ? "Try adjusting your search query"
-                    : "No leads available at the moment"}
-                </p>
-              </>
-            )}
+            <div className="p-4 rounded-full bg-gray-100 mb-4">
+              <Search className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-sm font-medium text-gray-900 mb-1">No leads found</h3>
+            <p className="text-xs text-gray-500">
+              {searchQuery
+                ? "Try adjusting your search query"
+                : "No leads available at the moment"}
+            </p>
           </div>
         ) : (
           // Lead items

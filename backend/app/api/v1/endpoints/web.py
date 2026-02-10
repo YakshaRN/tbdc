@@ -4,7 +4,9 @@ Web scraping endpoints for fetching company data from URLs.
 When a user searches for a URL and no matching leads are found,
 these endpoints can be used to extract company information from the website.
 """
+import re
 from typing import Optional, List, Dict, Any
+from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from loguru import logger
@@ -12,6 +14,7 @@ from loguru import logger
 from app.services.web.scraper import website_scraper
 from app.services.llm.bedrock_service import lead_analysis_service
 from app.services.llm.similar_customers_service import similar_customers_service
+from app.services.dynamodb.lead_cache import lead_analysis_cache
 from app.services.vector.marketing_vector_store import marketing_vector_store
 from app.schemas.lead_analysis import LeadAnalysis, EnrichedLeadResponse
 
@@ -220,3 +223,178 @@ async def analyze_website(request: WebsiteAnalysisRequest):
             marketing_materials=[],
             similar_customers=[]
         )
+
+
+def _normalize_domain(url: str) -> str:
+    """Extract and normalize domain from a URL for use as cache key."""
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    parsed = urlparse(url)
+    domain = parsed.netloc or parsed.path.split("/")[0]
+    # Remove www. prefix for consistent keying
+    domain = re.sub(r"^www\.", "", domain).lower().strip()
+    return domain
+
+
+@router.get("/evaluate", response_model=EnrichedLeadResponse)
+async def evaluate_website(
+    url: str = Query(..., description="The website URL to evaluate")
+):
+    """
+    One-shot endpoint: scrape a website, run LLM analysis, and cache in DynamoDB.
+    
+    If the URL has been evaluated before, returns cached results immediately.
+    Otherwise: scrapes → analyzes with LLM → caches → returns.
+    
+    The cache key is `web_{domain}` stored in the leads DynamoDB table.
+    """
+    logger.info(f"Evaluate website request: {url}")
+    
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    domain = _normalize_domain(url)
+    if not domain:
+        raise HTTPException(status_code=400, detail="Could not extract domain from URL")
+    
+    cache_key = f"web_{domain}"
+    logger.info(f"Website cache key: {cache_key} (domain: {domain})")
+    
+    # --- 1. Check DynamoDB cache ---
+    try:
+        cached = lead_analysis_cache.get_cached_data(cache_key)
+        if cached:
+            analysis, marketing_materials, similar_customers = cached
+            logger.info(f"Cache HIT for website {domain}")
+            # Reconstruct the lead-like data from the cached analysis
+            lead_like_data = {
+                "id": cache_key,
+                "Company": analysis.company_name or domain,
+                "Website": url,
+                "Description": "",
+                "Email": "",
+                "Phone": "",
+                "Country": "Unknown",
+                "Lead_Source": "Website Search",
+                "First_Name": "",
+                "Last_Name": "",
+                "_source": "website",
+            }
+            return EnrichedLeadResponse(
+                data=lead_like_data,
+                analysis=analysis,
+                analysis_available=True,
+                from_cache=True,
+                marketing_materials=marketing_materials,
+                similar_customers=similar_customers
+            )
+    except Exception as e:
+        logger.warning(f"Cache lookup failed for {cache_key}: {e}")
+    
+    # --- 2. Scrape the website ---
+    logger.info(f"Cache MISS for website {domain} — scraping...")
+    scrape_result = await website_scraper.fetch_website_data(url)
+    
+    if not scrape_result.get("success"):
+        error_msg = scrape_result.get("error", "Failed to fetch website data")
+        logger.warning(f"Scrape failed for {url}: {error_msg}")
+        raise HTTPException(status_code=422, detail=f"Could not fetch website: {error_msg}")
+    
+    # --- 3. Build lead-like data for LLM ---
+    company_name = scrape_result.get("company_name") or scrape_result.get("domain") or domain
+    description = scrape_result.get("description") or ""
+    keywords = scrape_result.get("keywords") or []
+    
+    lead_like_data = {
+        "id": cache_key,
+        "Company": company_name,
+        "Website": scrape_result.get("url", url),
+        "Description": description,
+        "Email": scrape_result.get("email") or "",
+        "Phone": scrape_result.get("phone") or "",
+        "Country": "Unknown",
+        "Lead_Source": "Website Search",
+        "First_Name": "",
+        "Last_Name": "",
+        "Title": scrape_result.get("title") or "",
+        "_source": "website",
+        "_logo_url": scrape_result.get("logo_url"),
+    }
+    
+    if keywords:
+        keywords_str = ", ".join(keywords)
+        if lead_like_data["Description"]:
+            lead_like_data["Description"] += f"\nKeywords: {keywords_str}"
+        else:
+            lead_like_data["Description"] = f"Keywords: {keywords_str}"
+    
+    if scrape_result.get("address"):
+        lead_like_data["Street"] = scrape_result["address"]
+    
+    # --- 4. Run LLM analysis ---
+    logger.info(f"Running LLM analysis for website {domain}...")
+    try:
+        analysis = lead_analysis_service.analyze_lead(lead_like_data)
+    except Exception as e:
+        logger.error(f"LLM analysis failed for {domain}: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM analysis failed: {str(e)}")
+    
+    # --- 5. Find similar customers ---
+    logger.info("Finding similar customers...")
+    similar_customers_data: List[Dict[str, Any]] = []
+    try:
+        analysis_dict = analysis.model_dump() if hasattr(analysis, 'model_dump') else analysis.dict()
+        similar_customers_data = similar_customers_service.find_similar_customers(
+            lead_data=lead_like_data,
+            analysis_data=analysis_dict
+        )
+    except Exception as e:
+        logger.warning(f"Could not find similar customers: {e}")
+    
+    # --- 6. Find marketing materials ---
+    logger.info("Finding marketing materials...")
+    marketing_materials: List[Dict[str, Any]] = []
+    try:
+        materials = marketing_vector_store.search_for_lead(
+            lead_data=lead_like_data,
+            top_k=5
+        )
+        marketing_materials = [
+            {
+                "material_id": m.get("material_id", ""),
+                "title": m.get("title", ""),
+                "link": m.get("link", ""),
+                "industry": m.get("industry", ""),
+                "business_topics": m.get("business_topics", ""),
+                "similarity_score": m.get("similarity_score", 0.0),
+            }
+            for m in materials
+        ]
+        logger.info(f"Found {len(marketing_materials)} relevant marketing materials")
+    except Exception as e:
+        logger.warning(f"Could not fetch marketing materials: {e}")
+    
+    # --- 7. Cache in DynamoDB ---
+    logger.info(f"Caching website evaluation for {domain}...")
+    try:
+        lead_analysis_cache.save_analysis(
+            lead_id=cache_key,
+            analysis=analysis,
+            marketing_materials=marketing_materials,
+            similar_customers=similar_customers_data
+        )
+        logger.info(f"Successfully cached website evaluation for {domain}")
+    except Exception as e:
+        logger.warning(f"Failed to cache website evaluation for {domain}: {e}")
+    
+    logger.info(f"Website evaluation completed: domain={domain}, fit_score={analysis.fit_score}")
+    
+    return EnrichedLeadResponse(
+        data=lead_like_data,
+        analysis=analysis,
+        analysis_available=True,
+        from_cache=False,
+        marketing_materials=marketing_materials,
+        similar_customers=similar_customers_data
+    )

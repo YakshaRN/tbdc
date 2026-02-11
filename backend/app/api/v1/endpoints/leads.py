@@ -21,6 +21,27 @@ from app.schemas.lead_analysis import EnrichedLeadResponse, LeadAnalysis
 
 router = APIRouter()
 
+@router.get("/test-owner")
+async def test_owner_format():
+    """Temporary endpoint to check owner data format"""
+    try:
+        # Get a few leads to see the Owner field structure
+        result = await zoho_crm_service.get_leads(page=1, per_page=5)
+        
+        owners = []
+        for lead in result.get("data", []):
+            owner = lead.get("Owner")
+            if owner:
+                owners.append({
+                    "lead_id": lead.get("id"),
+                    "lead_name": f"{lead.get('First_Name', '')} {lead.get('Last_Name', '')}",
+                    "owner_data": owner
+                })
+        
+        return {"owners": owners}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/", response_model=LeadListResponse)
 async def list_leads(
@@ -439,6 +460,7 @@ async def search_leads(
                 f"(Last_Name:starts_with:{search_query})",
                 f"(Email:starts_with:{search_query})",  # Changed from contains
                 f"(Company:starts_with:{search_query})",
+                f"(Owner.name:equals:{search_query})"
             ]
             # Join with ' or ' (note the spaces)
             search_criteria = "((" + ")or(".join(conditions) + "))"
@@ -478,10 +500,15 @@ async def search_leads(
             page=page,
             per_page=per_page,
         )
-        
+        data = result.get("data", [])
+        info = result.get("info", {})
+        # Ensure pagination info for frontend (Zoho returns page, per_page, count, more_records)
+        info.setdefault("page", page)
+        info.setdefault("per_page", per_page)
+        info.setdefault("more_records", False)
         return {
-            "data": result.get("data", []),
-            "info": result.get("info", {}),
+            "data": data,
+            "info": info,
         }
         
     except HTTPException:
@@ -489,3 +516,5 @@ async def search_leads(
     except Exception as e:
         logger.error(f"Error searching leads: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+

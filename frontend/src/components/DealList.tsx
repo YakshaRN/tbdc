@@ -12,6 +12,8 @@ interface DealListProps {
   onSearchChange: (query: string) => void;
   onSearchSubmit?: (query: string) => void;
   isLoading?: boolean;
+  /** When true, deals are from backend search (e.g. by owner); show all without client-side filter */
+  dealsAreFromSearch?: boolean;
   // Pagination props
   currentPage?: number;
   totalCount?: number;
@@ -30,6 +32,7 @@ export function DealList({
   onSearchChange,
   onSearchSubmit,
   isLoading = false,
+  dealsAreFromSearch = false,
   currentPage = 1,
   totalCount = 0,
   perPage = 100,
@@ -38,15 +41,18 @@ export function DealList({
   onPrevPage,
   onGoToPage,
 }: DealListProps) {
-  const filteredDeals = deals.filter((deal) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const dealName = (deal.Deal_Name || "").toLowerCase();
-    const accountName = (deal.Account_Name?.name || "").toLowerCase();
-    const stage = (deal.Stage || "").toLowerCase();
-    const industry = (deal.Industry || "").toLowerCase();
-    return dealName.includes(query) || accountName.includes(query) || stage.includes(query) || industry.includes(query);
-  });
+  // When deals are from backend search (e.g. by owner), show all; otherwise filter by search query locally
+  const filteredDeals =
+    dealsAreFromSearch || !searchQuery.trim()
+      ? deals
+      : deals.filter((deal) => {
+          const query = searchQuery.toLowerCase();
+          const dealName = (deal.Deal_Name || "").toLowerCase();
+          const accountName = (deal.Account_Name?.name || "").toLowerCase();
+          const stage = (deal.Stage || "").toLowerCase();
+          const industry = (deal.Industry || "").toLowerCase();
+          return dealName.includes(query) || accountName.includes(query) || stage.includes(query) || industry.includes(query);
+        });
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
@@ -73,7 +79,7 @@ export function DealList({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, account, or stage..."
+            placeholder="Search by name, account, stage, or owner..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={(e) => {
@@ -137,8 +143,8 @@ export function DealList({
         )}
       </div>
 
-      {/* Pagination Controls */}
-      {(hasMoreRecords || currentPage > 1) && !searchQuery && (
+      {/* Pagination Controls - Show when more records or past page 1 (normal list or search) */}
+      {(hasMoreRecords || currentPage > 1) && (
         <div className="border-t border-gray-200 bg-white p-3">
           <div className="flex items-center justify-between">
             {/* Previous Button */}

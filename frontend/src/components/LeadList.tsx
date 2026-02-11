@@ -13,6 +13,8 @@ interface LeadListProps {
   onSearchSubmit?: (query: string) => void;
   isLoading?: boolean;
   isEvaluatingUrl?: boolean;
+  /** When true, leads are from backend search (e.g. by owner); show all without client-side filter */
+  leadsAreFromSearch?: boolean;
   // Pagination props
   currentPage?: number;
   totalCount?: number;
@@ -32,6 +34,7 @@ export function LeadList({
   onSearchSubmit,
   isLoading = false,
   isEvaluatingUrl = false,
+  leadsAreFromSearch = false,
   currentPage = 1,
   totalCount = 0,
   perPage = 100,
@@ -40,14 +43,17 @@ export function LeadList({
   onPrevPage,
   onGoToPage,
 }: LeadListProps) {
-  const filteredLeads = leads.filter((lead) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const fullName = `${lead.First_Name || ""} ${lead.Last_Name || ""}`.toLowerCase();
-    const company = (lead.Company || "").toLowerCase();
-    const email = (lead.Email || "").toLowerCase();
-    return fullName.includes(query) || company.includes(query) || email.includes(query);
-  });
+  // When leads are from backend search (e.g. by owner name), show all; otherwise filter by search query locally
+  const filteredLeads =
+    leadsAreFromSearch || !searchQuery.trim()
+      ? leads
+      : leads.filter((lead) => {
+          const query = searchQuery.toLowerCase();
+          const fullName = `${lead.First_Name || ""} ${lead.Last_Name || ""}`.toLowerCase();
+          const company = (lead.Company || "").toLowerCase();
+          const email = (lead.Email || "").toLowerCase();
+          return fullName.includes(query) || company.includes(query) || email.includes(query);
+        });
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
@@ -152,8 +158,8 @@ export function LeadList({
         )}
       </div>
 
-      {/* Pagination Controls - Show when there are more records or we're past page 1 */}
-      {(hasMoreRecords || currentPage > 1) && !searchQuery && (
+      {/* Pagination Controls - Show when there are more records or we're past page 1 (normal list or search) */}
+      {(hasMoreRecords || currentPage > 1) && (
         <div className="border-t border-gray-200 bg-white p-3">
           <div className="flex items-center justify-between">
             {/* Previous Button */}

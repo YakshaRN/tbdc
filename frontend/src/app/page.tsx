@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [isLeadAnalysisLoading, setIsLeadAnalysisLoading] = useState(false);
   const [isLeadReevaluating, setIsLeadReevaluating] = useState(false);
   const [leadSearchQuery, setLeadSearchQuery] = useState("");
+  const [leadsAreFromSearch, setLeadsAreFromSearch] = useState(false);
   const [isLeadsLoading, setIsLeadsLoading] = useState(true);
   const [isLeadsRefreshing, setIsLeadsRefreshing] = useState(false);
   
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const [isDealAnalysisLoading, setIsDealAnalysisLoading] = useState(false);
   const [isDealReevaluating, setIsDealReevaluating] = useState(false);
   const [dealSearchQuery, setDealSearchQuery] = useState("");
+  const [dealsAreFromSearch, setDealsAreFromSearch] = useState(false);
   const [isDealsLoading, setIsDealsLoading] = useState(false);
   const [isDealsRefreshing, setIsDealsRefreshing] = useState(false);
   
@@ -87,6 +89,7 @@ export default function Dashboard() {
         });
 
         setLeads(response.data);
+        setLeadsAreFromSearch(false);
         setLeadsCurrentPage(response.page);
         setLeadsTotalCount(response.total_count);
         setLeadsHasMoreRecords(response.more_records);
@@ -164,12 +167,13 @@ export default function Dashboard() {
     []
   );
 
-  // Backend-powered search across ALL leads (not just current page)
+  // Backend-powered search across ALL leads (name, company, email, owner, etc.)
   const searchLeads = useCallback(
     async (query: string) => {
       const trimmed = query.trim();
       if (!trimmed) {
         // If query cleared, reset to first page of normal list
+        setLeadsAreFromSearch(false);
         fetchLeads(1);
         return;
       }
@@ -190,26 +194,24 @@ export default function Dashboard() {
         setIsLeadsLoading(true);
         setError(null);
 
-        const params: {
-          email?: string;
-          phone?: string;
-          company?: string;
-          page?: number;
-          per_page?: number;
-          search_query?: string;
-        } = {
+        const params = {
+          search_query: trimmed,
+          page: 1,
           per_page: LEADS_PER_PAGE,
         };
 
-        params.search_query = trimmed;
-
         const result = await leadsApi.searchLeads(params);
         const data = (result as any).data || [];
+        const info = (result as any).info || {};
+        const page = info.page ?? 1;
+        const perPage = info.per_page ?? LEADS_PER_PAGE;
+        const moreRecords = Boolean(info.more_records);
 
         setLeads(data);
-        setLeadsCurrentPage(1);
-        setLeadsTotalCount(data.length);
-        setLeadsHasMoreRecords(false);
+        setLeadsAreFromSearch(true);
+        setLeadsCurrentPage(page);
+        setLeadsTotalCount((page - 1) * perPage + data.length);
+        setLeadsHasMoreRecords(moreRecords);
       } catch (err) {
         console.error("Failed to search leads:", err);
         setError(err instanceof Error ? err.message : "Failed to search leads");
@@ -219,6 +221,40 @@ export default function Dashboard() {
       }
     },
     [fetchLeads, isUrlLike, evaluateWebsiteUrl]
+  );
+
+  // Load a specific page of search results (when leadsAreFromSearch)
+  const fetchSearchLeadsPage = useCallback(
+    async (page: number) => {
+      const trimmed = leadSearchQuery.trim();
+      if (!trimmed) return;
+
+      try {
+        setIsLeadsLoading(true);
+        setError(null);
+
+        const result = await leadsApi.searchLeads({
+          search_query: trimmed,
+          page,
+          per_page: LEADS_PER_PAGE,
+        });
+        const data = (result as any).data || [];
+        const info = (result as any).info || {};
+        const perPage = info.per_page ?? LEADS_PER_PAGE;
+        const moreRecords = Boolean(info.more_records);
+
+        setLeads(data);
+        setLeadsCurrentPage(page);
+        setLeadsTotalCount((page - 1) * perPage + data.length);
+        setLeadsHasMoreRecords(moreRecords);
+      } catch (err) {
+        console.error("Failed to fetch search page:", err);
+        setError(err instanceof Error ? err.message : "Failed to load search results");
+      } finally {
+        setIsLeadsLoading(false);
+      }
+    },
+    [leadSearchQuery]
   );
 
   const handleSelectLead = async (lead: Lead) => {
@@ -292,6 +328,7 @@ export default function Dashboard() {
         });
 
         setDeals(response.data);
+        setDealsAreFromSearch(false);
         setDealsCurrentPage(response.page);
         setDealsTotalCount(response.total_count);
         setDealsHasMoreRecords(response.more_records);
@@ -313,12 +350,13 @@ export default function Dashboard() {
     [selectedDeal]
   );
 
-  // Backend-powered search across ALL deals (not just current page)
+  // Backend-powered search across ALL deals (deal name, account, contact, owner, etc.)
   const searchDeals = useCallback(
     async (query: string) => {
       const trimmed = query.trim();
       if (!trimmed) {
         // If query cleared, reset to first page of normal list
+        setDealsAreFromSearch(false);
         fetchDeals(1);
         return;
       }
@@ -335,14 +373,20 @@ export default function Dashboard() {
 
         const result = await dealsApi.searchDeals({
           search_query: trimmed,
+          page: 1,
           per_page: DEALS_PER_PAGE,
         });
         const data = (result as any).data || [];
+        const info = (result as any).info || {};
+        const page = info.page ?? 1;
+        const perPage = info.per_page ?? DEALS_PER_PAGE;
+        const moreRecords = Boolean(info.more_records);
 
         setDeals(data);
-        setDealsCurrentPage(1);
-        setDealsTotalCount(data.length);
-        setDealsHasMoreRecords(false);
+        setDealsAreFromSearch(true);
+        setDealsCurrentPage(page);
+        setDealsTotalCount((page - 1) * perPage + data.length);
+        setDealsHasMoreRecords(moreRecords);
       } catch (err) {
         console.error("Failed to search deals:", err);
         setError(err instanceof Error ? err.message : "Failed to search deals");
@@ -352,6 +396,40 @@ export default function Dashboard() {
       }
     },
     [fetchDeals]
+  );
+
+  // Load a specific page of deal search results (when dealsAreFromSearch)
+  const fetchSearchDealsPage = useCallback(
+    async (page: number) => {
+      const trimmed = dealSearchQuery.trim();
+      if (!trimmed) return;
+
+      try {
+        setIsDealsLoading(true);
+        setError(null);
+
+        const result = await dealsApi.searchDeals({
+          search_query: trimmed,
+          page,
+          per_page: DEALS_PER_PAGE,
+        });
+        const data = (result as any).data || [];
+        const info = (result as any).info || {};
+        const perPage = info.per_page ?? DEALS_PER_PAGE;
+        const moreRecords = Boolean(info.more_records);
+
+        setDeals(data);
+        setDealsCurrentPage(page);
+        setDealsTotalCount((page - 1) * perPage + data.length);
+        setDealsHasMoreRecords(moreRecords);
+      } catch (err) {
+        console.error("Failed to fetch deal search page:", err);
+        setError(err instanceof Error ? err.message : "Failed to load search results");
+      } finally {
+        setIsDealsLoading(false);
+      }
+    },
+    [dealSearchQuery]
   );
 
   const handleSelectDeal = async (deal: Deal) => {
@@ -521,13 +599,24 @@ export default function Dashboard() {
                 onSearchSubmit={searchLeads}
                 isLoading={isLeadsLoading}
                 isEvaluatingUrl={isEvaluatingUrl}
+                leadsAreFromSearch={leadsAreFromSearch}
                 currentPage={leadsCurrentPage}
                 totalCount={leadsTotalCount}
                 perPage={LEADS_PER_PAGE}
                 hasMoreRecords={leadsHasMoreRecords}
-                onNextPage={() => leadsHasMoreRecords && fetchLeads(leadsCurrentPage + 1)}
-                onPrevPage={() => leadsCurrentPage > 1 && fetchLeads(leadsCurrentPage - 1)}
-                onGoToPage={(page) => fetchLeads(page)}
+                onNextPage={() =>
+                  leadsAreFromSearch
+                    ? (leadsHasMoreRecords && fetchSearchLeadsPage(leadsCurrentPage + 1))
+                    : (leadsHasMoreRecords && fetchLeads(leadsCurrentPage + 1))
+                }
+                onPrevPage={() =>
+                  leadsAreFromSearch
+                    ? (leadsCurrentPage > 1 && fetchSearchLeadsPage(leadsCurrentPage - 1))
+                    : (leadsCurrentPage > 1 && fetchLeads(leadsCurrentPage - 1))
+                }
+                onGoToPage={(page) =>
+                  leadsAreFromSearch ? fetchSearchLeadsPage(page) : fetchLeads(page)
+                }
               />
             </div>
 
@@ -563,13 +652,24 @@ export default function Dashboard() {
                 }}
                 onSearchSubmit={searchDeals}
                 isLoading={isDealsLoading}
+                dealsAreFromSearch={dealsAreFromSearch}
                 currentPage={dealsCurrentPage}
                 totalCount={dealsTotalCount}
                 perPage={DEALS_PER_PAGE}
                 hasMoreRecords={dealsHasMoreRecords}
-                onNextPage={() => dealsHasMoreRecords && fetchDeals(dealsCurrentPage + 1)}
-                onPrevPage={() => dealsCurrentPage > 1 && fetchDeals(dealsCurrentPage - 1)}
-                onGoToPage={(page) => fetchDeals(page)}
+                onNextPage={() =>
+                  dealsAreFromSearch
+                    ? (dealsHasMoreRecords && fetchSearchDealsPage(dealsCurrentPage + 1))
+                    : (dealsHasMoreRecords && fetchDeals(dealsCurrentPage + 1))
+                }
+                onPrevPage={() =>
+                  dealsAreFromSearch
+                    ? (dealsCurrentPage > 1 && fetchSearchDealsPage(dealsCurrentPage - 1))
+                    : (dealsCurrentPage > 1 && fetchDeals(dealsCurrentPage - 1))
+                }
+                onGoToPage={(page) =>
+                  dealsAreFromSearch ? fetchSearchDealsPage(page) : fetchDeals(page)
+                }
               />
             </div>
 

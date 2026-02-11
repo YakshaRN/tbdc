@@ -451,6 +451,7 @@ async def search_deals(
                 f"(Deal_Name:starts_with:{search_query})",
                 f"(Account_Name:starts_with:{search_query})",
                 f"(Contact_Name:starts_with:{search_query})",
+                f"(Owner.name:equals:{search_query})"
             ]
             # Proper OR formatting: (((condition1)or(condition2)or(condition3)))
             search_criteria = "((" + ")or(".join(conditions) + "))"
@@ -485,10 +486,15 @@ async def search_deals(
             page=page,
             per_page=per_page,
         )
-        
+        data = result.get("data", [])
+        info = result.get("info", {})
+        # Ensure pagination info for frontend (Zoho returns page, per_page, count, more_records)
+        info.setdefault("page", page)
+        info.setdefault("per_page", per_page)
+        info.setdefault("more_records", False)
         return {
-            "data": result.get("data", []),
-            "info": result.get("info", {}),
+            "data": data,
+            "info": info,
         }
         
     except HTTPException:

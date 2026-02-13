@@ -143,6 +143,7 @@ class DealAnalysisService:
         logger.info("[DealAnalysis] LLM Call 1/2: Sending main deal analysis request to Bedrock")
         analysis_data = self._run_main_analysis(formatted_data, attachment_text)
         logger.info(f"[DealAnalysis] LLM Call 1/2 done: Got {len(analysis_data)} fields from main analysis")
+        logger.info("[DealAnalysis] LLM Call 1/2 fields received:\n" + "\n".join(f"  {k}: {v}" for k, v in analysis_data.items()))
         
         # Convert revenue_top_5_customers to proper format
         if "revenue_top_5_customers" in analysis_data:
@@ -209,10 +210,10 @@ class DealAnalysisService:
         else:
             logger.debug("Analyzing deal with LLM...")
         
-        # logger.info("=== DEAL ANALYSIS PROMPT START ===")
-        # logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt[:500]}...")
-        # logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
-        # logger.info("=== DEAL ANALYSIS PROMPT END ===")
+        logger.info("=== DEAL ANALYSIS PROMPT START ===")
+        logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
+        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        logger.info("=== DEAL ANALYSIS PROMPT END ===")
         
         try:
             response = self.bedrock.invoke_claude(
@@ -263,10 +264,10 @@ class DealAnalysisService:
             logger.warning("Scoring prompt missing {analysis_summary} placeholder, appending summary")
             prompt = f"{prompt}\n\nAnalysis:\n{analysis_summary}"
         
-        # logger.info("=== SCORING RUBRIC PROMPT START ===")
-        # logger.info(f"System Prompt ({len(scoring_system_prompt)} chars)")
-        # logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
-        # logger.info("=== SCORING RUBRIC PROMPT END ===")
+        logger.info("=== SCORING RUBRIC PROMPT START ===")
+        logger.info(f"System Prompt ({len(scoring_system_prompt)} chars):\n{scoring_system_prompt}")
+        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        logger.info("=== SCORING RUBRIC PROMPT END ===")
         
         try:
             response = self.bedrock.invoke_claude(

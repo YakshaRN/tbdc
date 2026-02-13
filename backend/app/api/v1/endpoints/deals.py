@@ -255,6 +255,7 @@ async def get_deal(
                             logger.info(f"[Deal {deal_id}] Step 4: Fetching Fireflies meeting notes for {contact_email}")
                             meeting_text = fireflies_service.get_meeting_notes_for_email(contact_email)
                             logger.info(f"[Deal {deal_id}] Step 4 done: Got {len(meeting_text)} chars of meeting notes")
+                            logger.info(f"[Deal {deal_id}] Meeting notes:\n{meeting_text}")
                         else:
                             logger.info(f"[Deal {deal_id}] Step 4 done: No contact email — skipping Fireflies")
                     else:

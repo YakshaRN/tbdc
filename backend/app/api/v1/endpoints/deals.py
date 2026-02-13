@@ -134,6 +134,7 @@ async def get_deal(
         
         deal_data = result["data"][0]
         logger.info(f"[Deal {deal_id}] Step 1 done: Deal fetched — '{deal_data.get('Deal_Name', 'N/A')}'")
+        logger.info(f"[Deal {deal_id}] Deal fields:\n" + "\n".join(f"  {k}: {v}" for k, v in deal_data.items()))
         
         # Step 2: Handle analysis
         marketing_materials = []
@@ -225,6 +226,7 @@ async def get_deal(
                         if extractions:
                             attachment_text = document_extractor.combine_extracted_text(extractions)
                             logger.info(f"[Deal {deal_id}] Step 3 done: Extracted {len(attachment_text)} chars from {len(extractions)} document(s)")
+                            logger.info(f"[Deal {deal_id}] Extracted text:\n{attachment_text}")
                         else:
                             logger.info(f"[Deal {deal_id}] Step 3 done: No text extracted from attachments")
                     else:

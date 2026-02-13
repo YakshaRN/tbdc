@@ -101,12 +101,12 @@ class ZohoCRMService:
         headers = await self._get_headers()
         url = f"{self._get_base_url()}{endpoint}"
         
-        logger.info(f"[Zoho] >>> {method} {endpoint}")
-        logger.info(f"[Zoho] Full URL: {url}")
+        logger.debug(f"[Zoho] >>> {method} {endpoint}")
+        logger.debug(f"[Zoho] Full URL: {url}")
         if params:
-            logger.info(f"[Zoho] Params: {params}")
+            logger.debug(f"[Zoho] Params: {params}")
         if json_data:
-            logger.info(f"[Zoho] Body: {json_data}")
+            logger.debug(f"[Zoho] Body: {json_data}")
         
         try:
             response = await client.request(
@@ -117,7 +117,7 @@ class ZohoCRMService:
                 json=json_data,
             )
             
-            logger.info(f"[Zoho] <<< {method} {endpoint} — status: {response.status_code}")
+            logger.debug(f"[Zoho] <<< {method} {endpoint} — status: {response.status_code}")
             
             # Handle rate limiting
             if response.status_code == 429:
@@ -130,7 +130,7 @@ class ZohoCRMService:
                 await zoho_token_manager.refresh_access_token()
                 # Retry with new token
                 headers = await self._get_headers()
-                logger.info(f"[Zoho] Retrying {method} {endpoint} after token refresh")
+                logger.debug(f"[Zoho] Retrying {method} {endpoint} after token refresh")
                 response = await client.request(
                     method=method,
                     url=url,
@@ -138,7 +138,7 @@ class ZohoCRMService:
                     params=params,
                     json=json_data,
                 )
-                logger.info(f"[Zoho] <<< {method} {endpoint} (retry) — status: {response.status_code}")
+                logger.debug(f"[Zoho] <<< {method} {endpoint} (retry) — status: {response.status_code}")
             
             if response.status_code >= 400:
                 error_data = response.json() if response.text else {}
@@ -153,7 +153,7 @@ class ZohoCRMService:
             # Log record count if present
             record_count = len(result.get("data", [])) if isinstance(result.get("data"), list) else None
             if record_count is not None:
-                logger.info(f"[Zoho] {method} {endpoint} returned {record_count} record(s)")
+                logger.debug(f"[Zoho] {method} {endpoint} returned {record_count} record(s)")
             return result
             
         except httpx.RequestError as e:

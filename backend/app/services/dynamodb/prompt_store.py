@@ -100,6 +100,28 @@ class PromptStore:
             logger.error(f"Failed to create prompts table: {e}")
             return False
 
+    def sync_seed_prompts(self) -> bool:
+        """
+        Sync seed prompts from prompt_seed.py to DynamoDB on startup.
+        
+        Overwrites all prompts in DynamoDB with the values from prompt_seed.py.
+        This ensures code-level prompt changes are always deployed automatically.
+        """
+        if not self.is_enabled:
+            logger.warning("DynamoDB is disabled, cannot sync seed prompts")
+            return False
+        if not self._table_checked:
+            self.ensure_table_exists()
+        
+        seed = _get_seed_prompts()
+        logger.info(f"Syncing {len(seed)} seed prompts to DynamoDB...")
+        success = self.put_prompts(seed)
+        if success:
+            logger.info("Seed prompts synced to DynamoDB successfully")
+        else:
+            logger.error("Failed to sync seed prompts to DynamoDB")
+        return success
+
     def get_all_prompts(self) -> Dict[str, str]:
         """Load all prompts from DynamoDB. If table is empty, seed and return."""
         if not self.is_enabled:

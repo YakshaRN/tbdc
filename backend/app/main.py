@@ -45,11 +45,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error initializing DynamoDB deal table: {e}")
         
-        # Initialize prompts table
+        # Initialize prompts table and sync seed prompts
         if prompt_store.is_enabled:
             try:
                 if prompt_store.ensure_table_exists():
                     logger.info("DynamoDB prompts table is ready")
+                    # Sync seed prompts to DynamoDB so code changes are always deployed
+                    prompt_store.sync_seed_prompts()
                 else:
                     logger.warning("DynamoDB prompts table initialization failed")
             except Exception as e:

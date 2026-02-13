@@ -75,9 +75,10 @@ class Settings:
     BEDROCK_MAX_TOKENS: int = int(os.getenv("BEDROCK_MAX_TOKENS", "4096"))
     BEDROCK_TEMPERATURE: float = float(os.getenv("BEDROCK_TEMPERATURE", "0.3"))
     
-    # DynamoDB Configuration (for caching lead analysis)
+    # DynamoDB Configuration (for caching lead analysis and prompts)
     DYNAMODB_TABLE_NAME: str = os.getenv("DYNAMODB_TABLE_NAME", "leads")
     DYNAMODB_DEAL_TABLE_NAME: str = os.getenv("DYNAMODB_DEAL_TABLE_NAME", "tbdc_deal_analysis")
+    DYNAMODB_PROMPTS_TABLE_NAME: str = os.getenv("DYNAMODB_PROMPTS_TABLE_NAME", "prompts")
     DYNAMODB_ENABLED: bool = os.getenv("DYNAMODB_ENABLED", "true").lower() in ("true", "1", "yes")
     
     # JWT Authentication

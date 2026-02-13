@@ -292,8 +292,27 @@ export function DealDetail({
             </div>
           </div>
 
-          {/* Revenue from Top 5 Customers */}
-          <DetailCard title="Revenue from Top 5 Customers" icon={DollarSign} accentColor="blue">
+          {/* Revenue */}
+          <DetailCard title="Revenue" icon={DollarSign} accentColor="blue">
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-3/4 skeleton" />
+                <div className="h-4 bg-gray-200 rounded w-2/3 skeleton" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 skeleton" />
+              </div>
+            ) : analysis?.revenue_summary && analysis.revenue_summary.trim() !== "" ? (
+              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{analysis.revenue_summary}</p>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic text-center py-4">
+                Revenue data not available
+              </div>
+            )}
+          </DetailCard>
+
+          {/* Top 5 Customers */}
+          <DetailCard title="Top 5 Customers" icon={Users} accentColor="blue">
             {isAnalysisLoading ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
@@ -303,68 +322,13 @@ export function DealDetail({
                   </div>
                 ))}
               </div>
-            ) : analysis?.revenue_top_5_customers && analysis.revenue_top_5_customers.length > 0 ? (
-              <div className="space-y-3">
-                {analysis.revenue_top_5_customers.map((customer, index) => (
-                  <div 
-                    key={index} 
-                    className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-gray-900">{customer.name}</span>
-                      {customer.industry && (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                          {customer.industry}
-                        </span>
-                      )}
-                    </div>
-                    {customer.revenue_contribution && (
-                      <p className="text-xs text-blue-600 font-medium">{customer.revenue_contribution}</p>
-                    )}
-                    {customer.description && (
-                      <p className="text-xs text-gray-600 mt-1">{customer.description}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : similarCustomers && similarCustomers.length > 0 ? (
-              // Fall back to similar customers if no revenue data
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500 italic mb-2">Showing similar customers (revenue data not available)</p>
-                {similarCustomers.slice(0, 5).map((customer, index) => (
-                  <div 
-                    key={index} 
-                    className="p-3 bg-blue-50 rounded-lg border border-blue-100"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-semibold text-gray-900">{customer.name}</span>
-                        {customer.industry && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
-                            {customer.industry}
-                          </span>
-                        )}
-                        {customer.description && (
-                          <p className="text-xs text-gray-600 mt-1">{customer.description}</p>
-                        )}
-                      </div>
-                      {customer.website && (
-                        <a
-                          href={customer.website.startsWith('http') ? customer.website : `https://${customer.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg hover:bg-blue-100 transition-colors flex-shrink-0"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            ) : analysis?.top_5_customers_summary && analysis.top_5_customers_summary.trim() !== "" ? (
+              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{analysis.top_5_customers_summary}</p>
               </div>
             ) : (
               <div className="text-sm text-gray-400 italic text-center py-4">
-                No customer revenue data available
+                Customer data not available
               </div>
             )}
           </DetailCard>
@@ -404,9 +368,28 @@ export function DealDetail({
               )}
             </div>
           </DetailCard>
+
+          {/* Support Required */}
+          <DetailCard title="Support Required" icon={LifeBuoy} accentColor="purple">
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
+                <div className="h-20 bg-gray-200 rounded-lg skeleton" />
+              </div>
+            ) : analysis?.support_required && analysis.support_required.trim() !== "" ? (
+              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
+                  {analysis.support_required}
+                </p>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic text-center py-4">
+                Support requirements data not available
+              </div>
+            )}
+          </DetailCard>
         </div>
 
-        {/* Right Column - Scoring Rubric, ICP Mapping, Support Required */}
+        {/* Right Column - Scoring Rubric, ICP Mapping, Pricing */}
         <div className="col-span-5 space-y-6">
           {/* Scoring Rubric */}
           <DetailCard title="Scoring Rubric" icon={ClipboardList} accentColor="emerald">
@@ -476,8 +459,25 @@ export function DealDetail({
             )}
           </DetailCard>
 
-          {/* ICP Mapping - Pricing Summary */}
+          {/* ICP Mapping */}
           <DetailCard title="ICP Mapping" icon={MapPinned} accentColor="blue">
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
+                <div className="h-20 bg-gray-200 rounded-lg skeleton" />
+              </div>
+            ) : analysis?.icp_mapping && analysis.icp_mapping.trim() !== "" && analysis.icp_mapping !== "Unknown" ? (
+              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{analysis.icp_mapping}</p>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic text-center py-4">
+                ICP mapping data not available
+              </div>
+            )}
+          </DetailCard>
+
+          {/* Pricing */}
+          <DetailCard title="Pricing" icon={Receipt} accentColor="emerald">
             {isAnalysisLoading ? (
               <div className="space-y-3">
                 <div className="h-10 bg-gray-200 rounded-lg skeleton" />
@@ -575,67 +575,6 @@ export function DealDetail({
             ) : (
               <div className="text-sm text-gray-400 italic text-center py-4">
                 Pricing summary not available
-              </div>
-            )}
-          </DetailCard>
-
-          {/* Support Required */}
-          <DetailCard title="Support Required" icon={LifeBuoy} accentColor="purple">
-            {isAnalysisLoading ? (
-              <div className="space-y-3">
-                <div className="h-20 bg-gray-200 rounded-lg skeleton" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Support Required from Zoho */}
-                {(analysis?.support_required || deal.Support_Required) && (
-                  <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                    <p className="text-sm text-gray-800 leading-relaxed">
-                      {analysis?.support_required || deal.Support_Required}
-                    </p>
-                  </div>
-                )}
-
-                {/* Support Recommendations from LLM */}
-                {analysis?.support_recommendations && analysis.support_recommendations.length > 0 && (
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
-                      Recommended Support Actions
-                    </label>
-                    <ul className="space-y-2">
-                      {analysis.support_recommendations.map((rec, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                          <CheckCircle2 className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
-                          <span>{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Notes/Caveats */}
-                {analysis?.notes && analysis.notes.length > 0 && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
-                      Important Notes
-                    </label>
-                    <ul className="space-y-1">
-                      {analysis.notes.map((note, i) => (
-                        <li key={i} className="text-xs text-gray-500 italic">
-                          • {note}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Empty state */}
-                {!analysis?.support_required && !deal.Support_Required && 
-                 (!analysis?.support_recommendations || analysis.support_recommendations.length === 0) && (
-                  <div className="text-sm text-gray-400 italic text-center py-4">
-                    No support requirements specified
-                  </div>
-                )}
               </div>
             )}
           </DetailCard>

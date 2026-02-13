@@ -483,7 +483,7 @@ export function LeadDetail({
                 {similarCustomers && similarCustomers.length > 0 && (
                   <div>
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
-                      Similar Companies (Potential Customers)
+                      Potential Customers
                     </label>
                     <div className="space-y-2">
                       {similarCustomers.map((customer, index) => (

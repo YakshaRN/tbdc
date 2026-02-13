@@ -332,15 +332,27 @@ async def evaluate_website(
     if scrape_result.get("address"):
         lead_like_data["Street"] = scrape_result["address"]
     
-    # --- 4. Run LLM analysis ---
+    # --- 4. Scrape full page text for richer LLM context ---
+    website_text = None
+    try:
+        website_text = await website_scraper.fetch_page_text(url)
+        if website_text:
+            logger.info(f"Scraped {len(website_text)} chars of page text for {domain}")
+    except Exception as e:
+        logger.warning(f"Could not scrape page text for {domain}: {e}")
+    
+    # --- 5. Run LLM analysis ---
     logger.info(f"Running LLM analysis for website {domain}...")
     try:
-        analysis = lead_analysis_service.analyze_lead(lead_like_data)
+        analysis = lead_analysis_service.analyze_lead(
+            lead_like_data,
+            website_text=website_text,
+        )
     except Exception as e:
         logger.error(f"LLM analysis failed for {domain}: {e}")
         raise HTTPException(status_code=500, detail=f"LLM analysis failed: {str(e)}")
     
-    # --- 5. Find similar customers ---
+    # --- 6. Find similar customers ---
     logger.info("Finding similar customers...")
     similar_customers_data: List[Dict[str, Any]] = []
     try:
@@ -352,7 +364,7 @@ async def evaluate_website(
     except Exception as e:
         logger.warning(f"Could not find similar customers: {e}")
     
-    # --- 6. Find marketing materials ---
+    # --- 7. Find marketing materials ---
     logger.info("Finding marketing materials...")
     marketing_materials: List[Dict[str, Any]] = []
     try:
@@ -375,7 +387,7 @@ async def evaluate_website(
     except Exception as e:
         logger.warning(f"Could not fetch marketing materials: {e}")
     
-    # --- 7. Cache in DynamoDB ---
+    # --- 8. Cache in DynamoDB ---
     logger.info(f"Caching website evaluation for {domain}...")
     try:
         lead_analysis_cache.save_analysis(

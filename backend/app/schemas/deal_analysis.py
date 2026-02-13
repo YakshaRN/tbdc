@@ -86,10 +86,18 @@ class DealAnalysis(BaseModel):
         description="Company size category (Startup, SMB, Mid-Market, Enterprise, Unknown)"
     )
     
-    # Revenue & Customers - Top 5 customers from Zoho
+    # Revenue & Customers - reformatted from Zoho fields by LLM
+    revenue_summary: str = Field(
+        default="",
+        description="LLM-reformatted revenue summary based on Zoho revenue fields"
+    )
+    top_5_customers_summary: str = Field(
+        default="",
+        description="LLM-reformatted top 5 customers summary based on Zoho customer fields"
+    )
     revenue_top_5_customers: List[RevenueCustomer] = Field(
         default_factory=list,
-        description="Top 5 revenue-generating customers"
+        description="Top 5 revenue-generating customers (legacy)"
     )
     
     # Scoring Rubric - Like current status

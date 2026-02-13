@@ -137,9 +137,6 @@ async def update_prompts(request: PromptUpdateRequest):
                 detail="Failed to save prompts"
             )
         
-        # Sync updated prompts to deal analysis service
-        _sync_deal_prompts()
-        
         prompts = prompt_manager.get_all_prompts()
         
         logger.info(f"Prompts updated successfully (fields: {list(update_kwargs.keys())})")
@@ -155,49 +152,3 @@ async def update_prompts(request: PromptUpdateRequest):
     except Exception as e:
         logger.error(f"Error updating prompts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/prompts/reset", response_model=PromptUpdateResponse)
-async def reset_prompts():
-    """
-    Reset all prompts to default values for both Leads and Application modules.
-    """
-    try:
-        success = prompt_manager.reset_to_defaults()
-        
-        if not success:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to reset prompts"
-            )
-        
-        # Sync reset prompts to deal analysis service
-        _sync_deal_prompts()
-        
-        prompts = prompt_manager.get_all_prompts()
-        
-        logger.info("All prompts reset to defaults")
-        
-        return PromptUpdateResponse(
-            success=True,
-            message="All prompts reset to defaults",
-            **prompts,
-        )
-        
-    except Exception as e:
-        logger.error(f"Error resetting prompts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def _sync_deal_prompts():
-    """Push current deal prompts from prompt_manager into the deal_analysis_service."""
-    try:
-        from app.services.llm.deal_analysis_service import deal_analysis_service
-        deal_analysis_service.update_prompts(
-            system_prompt=prompt_manager.get_deal_system_prompt(),
-            analysis_prompt=prompt_manager.get_deal_analysis_prompt(),
-        )
-        deal_analysis_service._scoring_system_prompt = prompt_manager.get_deal_scoring_system_prompt()
-        deal_analysis_service._scoring_prompt_template = prompt_manager.get_deal_scoring_prompt()
-    except Exception as e:
-        logger.warning(f"Could not sync deal prompts: {e}")

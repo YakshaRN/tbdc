@@ -12,6 +12,7 @@ from app.api.v1.router import api_router
 from app.services.zoho.token_manager import zoho_token_manager
 from app.services.dynamodb.lead_cache import lead_analysis_cache
 from app.services.dynamodb.deal_cache import deal_analysis_cache
+from app.services.dynamodb.prompt_store import prompt_store
 
 
 @asynccontextmanager
@@ -43,6 +44,16 @@ async def lifespan(app: FastAPI):
                 logger.warning("DynamoDB deal table initialization failed - deal caching may not work")
         except Exception as e:
             logger.error(f"Error initializing DynamoDB deal table: {e}")
+        
+        # Initialize prompts table
+        if prompt_store.is_enabled:
+            try:
+                if prompt_store.ensure_table_exists():
+                    logger.info("DynamoDB prompts table is ready")
+                else:
+                    logger.warning("DynamoDB prompts table initialization failed")
+            except Exception as e:
+                logger.error(f"Error initializing DynamoDB prompts table: {e}")
     else:
         logger.warning("DynamoDB caching is DISABLED - check AWS credentials and DYNAMODB_ENABLED setting")
         logger.info(f"  DYNAMODB_ENABLED: {settings.DYNAMODB_ENABLED}")

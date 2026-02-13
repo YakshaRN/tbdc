@@ -221,7 +221,9 @@ Company Input:
     def analyze_lead(
         self, 
         lead_data: Dict[str, Any],
-        attachment_text: Optional[str] = None
+        attachment_text: Optional[str] = None,
+        website_text: Optional[str] = None,
+        linkedin_text: Optional[str] = None,
     ) -> LeadAnalysis:
         """
         Analyze lead data using LLM and return structured insights.
@@ -230,26 +232,27 @@ Company Input:
             lead_data: Lead data from Zoho CRM
             attachment_text: Optional extracted text from lead attachments 
                             (pitch decks, PDFs, documents, etc.)
+            website_text: Optional scraped plain-text from the company website
+            linkedin_text: Optional scraped plain-text from the LinkedIn profile
             
         Returns:
             LeadAnalysis object with AI-generated insights
         """
         # Format lead data for the prompt
-        formatted_data = self._format_lead_data(lead_data, attachment_text)
+        formatted_data = self._format_lead_data(
+            lead_data, attachment_text, website_text, linkedin_text
+        )
         
         # Get prompts from prompt manager (allows runtime updates)
         analysis_prompt_template = self.prompt_manager.get_analysis_prompt()
         system_prompt = self.prompt_manager.get_system_prompt()
         
-        # Safely format the prompt, handling any brace escaping issues
-        try:
-            prompt = analysis_prompt_template.format(lead_data=formatted_data)
-        except KeyError as e:
-            logger.warning(f"Prompt formatting error (resetting to defaults): {e}")
-            # Reset to defaults and try again
-            self.prompt_manager.reset_to_defaults()
-            analysis_prompt_template = self.prompt_manager.get_analysis_prompt()
-            prompt = analysis_prompt_template.format(lead_data=formatted_data)
+        # Safely substitute {lead_data} without touching other braces (e.g. JSON examples in prompt)
+        if "{lead_data}" in analysis_prompt_template:
+            prompt = analysis_prompt_template.replace("{lead_data}", formatted_data)
+        else:
+            logger.warning("Analysis prompt missing {lead_data} placeholder, appending data")
+            prompt = f"{analysis_prompt_template}\n\n{formatted_data}"
         
         if attachment_text:
             logger.debug(f"Analyzing lead with LLM (including {len(attachment_text)} chars from attachments)...")
@@ -284,7 +287,9 @@ Company Input:
     def _format_lead_data(
         self, 
         lead_data: Dict[str, Any],
-        attachment_text: Optional[str] = None
+        attachment_text: Optional[str] = None,
+        website_text: Optional[str] = None,
+        linkedin_text: Optional[str] = None,
     ) -> str:
         """
         Format lead data as readable text for the LLM.
@@ -292,6 +297,8 @@ Company Input:
         Args:
             lead_data: Lead data from Zoho CRM
             attachment_text: Optional extracted text from attachments
+            website_text: Optional scraped plain-text from the company website
+            linkedin_text: Optional scraped plain-text from the LinkedIn profile
             
         Returns:
             Formatted string for LLM prompt
@@ -303,8 +310,8 @@ Company Input:
         priority_fields = [
             "First_Name", "Last_Name", "Email", "Phone", "Mobile",
             "Company", "Title", "Industry", "Lead_Source", "Lead_Status",
-            "Website", "Description", "Street", "City", "State", 
-            "Zip_Code", "Country", "Annual_Revenue", "No_of_Employees",
+            "Website", "LinkedIn_Profile", "Description", "Street", "City",
+            "State", "Zip_Code", "Country", "Annual_Revenue", "No_of_Employees",
         ]
         
         for field in priority_fields:
@@ -325,6 +332,20 @@ Company Input:
             result += attachment_text
             result += "\n=== END OF ATTACHED DOCUMENTS ==="
         
+        # Add scraped website content if available
+        if website_text and website_text.strip():
+            result += "\n\n=== SCRAPED WEBSITE CONTENT ===\n"
+            result += website_text
+            result += "\n=== END OF SCRAPED WEBSITE CONTENT ==="
+        
+        # Add scraped LinkedIn profile content if available
+        if linkedin_text and linkedin_text.strip():
+            result += "\n\n=== SCRAPED LINKEDIN PROFILE ===\n"
+            result += linkedin_text
+            result += "\n=== END OF SCRAPED LINKEDIN PROFILE ==="
+
+        
+        logger.info(f"****** Formatted lead data: {result} ******")
         return result
     
     def _parse_response(self, response: str) -> Dict[str, Any]:

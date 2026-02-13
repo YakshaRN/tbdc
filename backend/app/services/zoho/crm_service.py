@@ -30,8 +30,9 @@ class ZohoCRMService:
     DEFAULT_LEAD_FIELDS = [
         "id", "First_Name", "Last_Name", "Email", "Phone", "Mobile",
         "Company", "Title", "Industry", "Lead_Source", "Lead_Status",
-        "Website", "Description", "Street", "City", "State", "Zip_Code",
-        "Country", "Created_Time", "Modified_Time", "Owner"
+        "Website", "LinkedIn_Profile", "Description", "Street", "City",
+        "State", "Zip_Code", "Country", "Created_Time", "Modified_Time",
+        "Owner"
     ]
     
     DEFAULT_CONTACT_FIELDS = [

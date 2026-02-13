@@ -306,6 +306,64 @@ class WebScraperService:
         
         return None
 
+    async def fetch_page_text(self, url: str, max_chars: int = 5000) -> Optional[str]:
+        """
+        Fetch a URL and return its visible text content (stripped HTML).
+        
+        This is a lightweight scrape intended to give the LLM raw page text
+        as context for analysis.  Returns None on any failure so callers
+        can proceed without it.
+        
+        Args:
+            url: The URL to fetch
+            max_chars: Maximum characters to return (default 5000)
+            
+        Returns:
+            Plain text content of the page, or None on failure
+        """
+        if not url or not url.strip():
+            return None
+        
+        url = self.normalize_url(url)
+        
+        if not self.is_valid_url(url):
+            return None
+        
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                headers=self.headers,
+                follow_redirects=True,
+            ) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.text, "html.parser")
+                
+                # Remove non-visible elements
+                for tag in soup(["script", "style", "noscript", "header", "footer", "nav", "iframe"]):
+                    tag.decompose()
+                
+                text = soup.get_text(separator="\n", strip=True)
+                
+                # Collapse excessive blank lines
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                text = "\n".join(lines)
+                
+                if not text:
+                    return None
+                
+                # Truncate
+                if len(text) > max_chars:
+                    text = text[:max_chars] + "\n... [truncated]"
+                
+                logger.info(f"Scraped {len(text)} chars of text from {url}")
+                return text
+                
+        except Exception as e:
+            logger.warning(f"Failed to fetch page text from {url}: {e}")
+            return None
+
 
 # Global instance
 website_scraper = WebScraperService()

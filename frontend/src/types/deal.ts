@@ -35,7 +35,9 @@ export interface DealAnalysis {
   motion?: string;
   raise_stage?: string;
   company_size?: string;
-  // Revenue & Customers
+  // Revenue & Customers (LLM-reformatted from Zoho fields)
+  revenue_summary?: string;
+  top_5_customers_summary?: string;
   revenue_top_5_customers?: RevenueCustomer[];
   // Scoring
   scoring_rubric?: Record<string, unknown>;

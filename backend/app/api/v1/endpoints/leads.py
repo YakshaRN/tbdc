@@ -1,6 +1,7 @@
 """
 Lead management endpoints.
 """
+import asyncio
 from typing import Optional, List
 from fastapi import APIRouter, Query, Path, HTTPException
 from loguru import logger
@@ -11,6 +12,7 @@ from app.services.llm.similar_customers_service import similar_customers_service
 from app.services.dynamodb.lead_cache import lead_analysis_cache
 from app.services.vector.marketing_vector_store import marketing_vector_store
 from app.services.document.extractor import document_extractor
+from app.services.web.scraper import website_scraper
 from app.schemas.lead import (
     LeadResponse,
     LeadListResponse,
@@ -20,28 +22,6 @@ from app.schemas.lead import (
 from app.schemas.lead_analysis import EnrichedLeadResponse, LeadAnalysis
 
 router = APIRouter()
-
-@router.get("/test-owner")
-async def test_owner_format():
-    """Temporary endpoint to check owner data format"""
-    try:
-        # Get a few leads to see the Owner field structure
-        result = await zoho_crm_service.get_leads(page=1, per_page=5)
-        
-        owners = []
-        for lead in result.get("data", []):
-            owner = lead.get("Owner")
-            if owner:
-                owners.append({
-                    "lead_id": lead.get("id"),
-                    "lead_name": f"{lead.get('First_Name', '')} {lead.get('Last_Name', '')}",
-                    "owner_data": owner
-                })
-        
-        return {"owners": owners}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/", response_model=LeadListResponse)
 async def list_leads(
@@ -245,11 +225,47 @@ async def get_lead(
                 except Exception as e:
                     logger.warning(f"Error fetching/extracting attachments: {e}")
                 
-                # Step 2c: Generate new analysis using Bedrock LLM (including attachment content)
+                # Step 2b2: Scrape Website and LinkedIn profile in parallel (best-effort)
+                website_url = lead_data.get("Website") or ""
+                linkedin_url = lead_data.get("LinkedIn_Profile") or ""
+                website_text = None
+                linkedin_text = None
+                
+                scrape_tasks = []
+                if website_url.strip():
+                    scrape_tasks.append(("website", website_scraper.fetch_page_text(website_url)))
+                if linkedin_url.strip():
+                    scrape_tasks.append(("linkedin", website_scraper.fetch_page_text(linkedin_url)))
+                
+                if scrape_tasks:
+                    logger.info(f"Scraping {len(scrape_tasks)} URL(s) for lead {lead_id}: "
+                                f"website={'yes' if website_url.strip() else 'no'}, "
+                                f"linkedin={'yes' if linkedin_url.strip() else 'no'}")
+                    try:
+                        results = await asyncio.gather(
+                            *[task for _, task in scrape_tasks],
+                            return_exceptions=True
+                        )
+                        for (label, _), result in zip(scrape_tasks, results):
+                            if isinstance(result, Exception):
+                                logger.warning(f"Scrape failed for {label}: {result}")
+                            elif result:
+                                if label == "website":
+                                    website_text = result
+                                    logger.info(f"Scraped {len(result)} chars from website")
+                                else:
+                                    linkedin_text = result
+                                    logger.info(f"Scraped {len(result)} chars from LinkedIn")
+                    except Exception as e:
+                        logger.warning(f"Error during parallel scraping: {e}")
+                
+                # Step 2c: Generate new analysis using Bedrock LLM (including all enriched content)
                 logger.info(f"Generating LLM analysis for lead {lead_id}")
                 analysis = lead_analysis_service.analyze_lead(
                     lead_data=lead_data,
-                    attachment_text=attachment_text if attachment_text else None
+                    attachment_text=attachment_text if attachment_text else None,
+                    website_text=website_text,
+                    linkedin_text=linkedin_text,
                 )
                 analysis_available = True
                 from_cache = False

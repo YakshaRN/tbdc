@@ -333,15 +333,6 @@ export const settingsApi = {
       body: JSON.stringify(data),
     });
   },
-
-  /**
-   * Reset prompts to defaults
-   */
-  async resetPrompts(): Promise<PromptUpdateResponse> {
-    return fetchApi<PromptUpdateResponse>("/settings/prompts/reset", {
-      method: "POST",
-    });
-  },
 };
 
 export { ApiError };

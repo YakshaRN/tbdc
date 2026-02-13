@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Save, RotateCcw, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { X, Save, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import clsx from "clsx";
 import { settingsApi, PromptsData } from "@/lib/api";
 
@@ -53,7 +53,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType>("leads");
@@ -108,37 +107,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setError(err instanceof Error ? err.message : "Failed to save prompts");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to reset ALL prompts (Leads + Application) to defaults? This cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    setIsResetting(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const data = await settingsApi.resetPrompts();
-      setPrompts({
-        system_prompt: data.system_prompt,
-        analysis_prompt: data.analysis_prompt,
-        deal_system_prompt: data.deal_system_prompt,
-        deal_analysis_prompt: data.deal_analysis_prompt,
-        deal_scoring_system_prompt: data.deal_scoring_system_prompt,
-        deal_scoring_prompt: data.deal_scoring_prompt,
-      });
-      setSuccess("All prompts reset to defaults!");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reset prompts");
-    } finally {
-      setIsResetting(false);
     }
   };
 
@@ -279,48 +247,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
             <button
-              onClick={handleReset}
-              disabled={isLoading || isResetting}
+              onClick={onClose}
+              className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isLoading || isSaving}
               className={clsx(
-                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
-                "text-gray-600 hover:bg-gray-200",
+                "flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-colors",
+                "bg-emerald-600 text-white hover:bg-emerald-700",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
-              {isResetting ? (
+              {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <RotateCcw className="w-4 h-4" />
+                <Save className="w-4 h-4" />
               )}
-              Reset All to Defaults
+              Save All Changes
             </button>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isLoading || isSaving}
-                className={clsx(
-                  "flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-colors",
-                  "bg-emerald-600 text-white hover:bg-emerald-700",
-                  "disabled:opacity-50 disabled:cursor-not-allowed"
-                )}
-              >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                Save All Changes
-              </button>
-            </div>
           </div>
         </div>
       </div>

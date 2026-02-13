@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { LeadList, LeadDetail, DealList, DealDetail, Header, SettingsModal, TabType } from "@/components";
 import { Lead, LeadAnalysis, MarketingMaterial, SimilarCustomer } from "@/types/lead";
-import { Deal, DealAnalysis, MarketingMaterial as DealMarketingMaterial, SimilarCustomer as DealSimilarCustomer } from "@/types/deal";
+import { Deal, DealAnalysis, MarketingMaterial as DealMarketingMaterial, SimilarCustomer as DealSimilarCustomer, MeetingNote } from "@/types/deal";
 import { leadsApi, dealsApi, webApi } from "@/lib/api";
 import { AlertCircle, RefreshCcw, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +41,7 @@ export default function Dashboard() {
   const [selectedDealAnalysis, setSelectedDealAnalysis] = useState<DealAnalysis | null>(null);
   const [selectedDealMaterials, setSelectedDealMaterials] = useState<DealMarketingMaterial[]>([]);
   const [selectedDealSimilarCustomers, setSelectedDealSimilarCustomers] = useState<DealSimilarCustomer[]>([]);
+  const [selectedDealMeetings, setSelectedDealMeetings] = useState<MeetingNote[]>([]);
   const [isDealAnalysisLoading, setIsDealAnalysisLoading] = useState(false);
   const [isDealReevaluating, setIsDealReevaluating] = useState(false);
   const [dealSearchQuery, setDealSearchQuery] = useState("");
@@ -437,6 +438,7 @@ export default function Dashboard() {
     setSelectedDealAnalysis(null);
     setSelectedDealMaterials([]);
     setSelectedDealSimilarCustomers([]);
+    setSelectedDealMeetings([]);
     setIsDealAnalysisLoading(true);
 
     try {
@@ -450,6 +452,9 @@ export default function Dashboard() {
       }
       if (response.similar_customers) {
         setSelectedDealSimilarCustomers(response.similar_customers);
+      }
+      if (response.meetings) {
+        setSelectedDealMeetings(response.meetings);
       }
     } catch (err) {
       console.error("Failed to fetch deal details:", err);
@@ -475,6 +480,9 @@ export default function Dashboard() {
       }
       if (response.similar_customers) {
         setSelectedDealSimilarCustomers(response.similar_customers);
+      }
+      if (response.meetings) {
+        setSelectedDealMeetings(response.meetings);
       }
     } catch (err) {
       console.error("Failed to reevaluate deal:", err);
@@ -680,6 +688,7 @@ export default function Dashboard() {
                 analysis={selectedDealAnalysis}
                 marketingMaterials={selectedDealMaterials}
                 similarCustomers={selectedDealSimilarCustomers}
+                meetings={selectedDealMeetings}
                 isLoading={isDealsLoading && !selectedDeal}
                 isAnalysisLoading={isDealAnalysisLoading}
                 isReevaluating={isDealReevaluating}

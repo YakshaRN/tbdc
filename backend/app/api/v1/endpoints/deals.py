@@ -139,6 +139,7 @@ async def get_deal(
         # Step 2: Handle analysis
         marketing_materials = []
         similar_customers = []
+        meetings = []
         
         if skip_analysis:
             logger.info(f"[Deal {deal_id}] Analysis skipped by user request")
@@ -203,8 +204,13 @@ async def get_deal(
                 cached_data = deal_analysis_cache.get_cached_data(deal_id)
             
             if cached_data:
-                analysis, marketing_materials, similar_customers = cached_data
-                logger.info(f"[Deal {deal_id}] Step 2 done: Cache HIT — {len(marketing_materials)} materials, {len(similar_customers)} similar customers")
+                if len(cached_data) == 4:
+                    analysis, marketing_materials, similar_customers, meetings = cached_data
+                else:
+                    # Backward compatibility: old cached entries without meetings
+                    analysis, marketing_materials, similar_customers = cached_data
+                    meetings = []
+                logger.info(f"[Deal {deal_id}] Step 2 done: Cache HIT — {len(marketing_materials)} materials, {len(similar_customers)} similar customers, {len(meetings)} meetings")
                 analysis_available = True
                 from_cache = True
             else:
@@ -253,8 +259,8 @@ async def get_deal(
                         
                         if contact_email:
                             logger.info(f"[Deal {deal_id}] Step 4: Fetching Fireflies meeting notes for {contact_email}")
-                            meeting_text = fireflies_service.get_meeting_notes_for_email(contact_email)
-                            logger.info(f"[Deal {deal_id}] Step 4 done: Got {len(meeting_text)} chars of meeting notes")
+                            meeting_text, meetings = fireflies_service.get_meetings_and_notes_for_email(contact_email)
+                            logger.info(f"[Deal {deal_id}] Step 4 done: Got {len(meeting_text)} chars of meeting notes, {len(meetings)} meeting(s)")
                             logger.info(f"[Deal {deal_id}] Meeting notes:\n{meeting_text}")
                         else:
                             logger.info(f"[Deal {deal_id}] Step 4 done: No contact email — skipping Fireflies")
@@ -317,7 +323,8 @@ async def get_deal(
                         deal_id, 
                         analysis, 
                         marketing_materials,
-                        similar_customers
+                        similar_customers,
+                        meetings
                     )
                     logger.info(f"[Deal {deal_id}] Step 8 done: Cached successfully")
                 else:
@@ -332,6 +339,7 @@ async def get_deal(
             from_cache=from_cache,
             marketing_materials=marketing_materials,
             similar_customers=similar_customers,
+            meetings=meetings,
         )
         
     except HTTPException:

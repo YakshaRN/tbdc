@@ -1,3 +1,12 @@
+// Fireflies meeting transcript summary
+export interface MeetingNote {
+  id: string;
+  title: string;
+  date: string;
+  notes: string;
+  action_items: string;
+}
+
 // Revenue customer information
 export interface RevenueCustomer {
   name: string;
@@ -117,6 +126,7 @@ export interface DealWithAnalysis {
   from_cache?: boolean;
   marketing_materials?: MarketingMaterial[];
   similar_customers?: SimilarCustomer[];
+  meetings?: MeetingNote[];
 }
 
 export interface DealListResponse {
@@ -134,4 +144,5 @@ export interface DealResponse {
   from_cache?: boolean;
   marketing_materials?: MarketingMaterial[];
   similar_customers?: SimilarCustomer[];
+  meetings?: MeetingNote[];
 }

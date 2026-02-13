@@ -271,23 +271,29 @@ Company Input:
         else:
             logger.debug(f"Analyzing lead with LLM...")
         
-        # # Log the final prompt being sent to LLM
-        # logger.info("=== LEAD ANALYSIS PROMPT START ===")
-        # logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt[:500]}...")
-        # logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
-        # logger.info("=== LEAD ANALYSIS PROMPT END ===")
+        # Log the final prompt being sent to LLM
+        logger.info("=== LEAD ANALYSIS PROMPT START ===")
+        logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
+        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        logger.info("=== LEAD ANALYSIS PROMPT END ===")
         
         try:
+            logger.info("[LeadAnalysis] LLM Call: Sending lead analysis request to Bedrock")
             response = self.bedrock.invoke_claude(
                 prompt=prompt,
                 system_prompt=system_prompt,
                 temperature=0.3,  # Lower temperature for more consistent output
             )
             
+            # Log the full LLM response without truncation
+            logger.info(f"[LeadAnalysis] LLM Call done: Response length = {len(response)} chars")
+            logger.info(f"[LeadAnalysis] LLM Raw Response:\n{response}")
+            
             # Parse JSON response
             analysis_data = self._parse_response(response)
             
-            logger.info(f"Lead analysis completed successfully")
+            logger.info(f"[LeadAnalysis] Parsed {len(analysis_data)} fields from lead analysis")
+            logger.info("[LeadAnalysis] Fields received:\n" + "\n".join(f"  {k}: {v}" for k, v in analysis_data.items()))
             
             return LeadAnalysis(**analysis_data)
             

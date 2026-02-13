@@ -116,7 +116,7 @@ class FirefliesService:
 
         query = (
             '{ transcript(id: "' + transcript_id + '") '
-            '{ id title summary { notes action_items } } }'
+            '{ id date title summary { notes action_items } } }'
         )
         result = self._query(query)
 
@@ -131,15 +131,17 @@ class FirefliesService:
 
         summary = transcript.get("summary") or {}
         title = transcript.get("title", "")
+        date = transcript.get("date", "")
         notes = summary.get("notes", "")
         action_items = summary.get("action_items", "")
         logger.info(
             f"[Fireflies] Transcript {transcript_id} summary - "
-            f"title: '{title}', notes: {len(notes)} chars, action_items: {len(action_items)} chars"
+            f"title: '{title}', date: '{date}', notes: {len(notes)} chars, action_items: {len(action_items)} chars"
         )
         return {
             "id": transcript.get("id", transcript_id),
             "title": title,
+            "date": date,
             "notes": notes,
             "action_items": action_items,
         }
@@ -150,18 +152,35 @@ class FirefliesService:
         fetch each summary, and return a single formatted text block
         suitable for appending to an LLM prompt.
         """
-        logger.info(f"[Fireflies] get_meeting_notes_for_email called for email: {email}")
+        combined_text, _ = self.get_meetings_and_notes_for_email(email)
+        return combined_text
+
+    def get_meetings_and_notes_for_email(
+        self, email: str
+    ) -> tuple:
+        """
+        High-level method: find all transcripts for the email,
+        fetch each summary, and return both:
+        1. A single formatted text block for LLM prompt context
+        2. A list of structured meeting dicts for frontend display
+
+        Returns:
+            Tuple of (combined_text: str, meetings: List[Dict])
+            Each meeting dict has keys: id, title, date, notes, action_items
+        """
+        logger.info(f"[Fireflies] get_meetings_and_notes_for_email called for email: {email}")
         if not self.is_enabled:
-            logger.warning("[Fireflies] Service not enabled, returning empty string")
-            return ""
+            logger.warning("[Fireflies] Service not enabled, returning empty")
+            return ("", [])
 
         transcript_ids = self.get_transcripts_for_email(email)
         if not transcript_ids:
-            logger.info(f"[Fireflies] No transcripts found for {email}, returning empty string")
-            return ""
+            logger.info(f"[Fireflies] No transcripts found for {email}, returning empty")
+            return ("", [])
 
         logger.info(f"[Fireflies] Fetching summaries for {len(transcript_ids)} transcripts...")
         sections: List[str] = []
+        meetings: List[Dict[str, Any]] = []
 
         for i, tid in enumerate(transcript_ids, 1):
             logger.info(f"[Fireflies] Fetching summary {i}/{len(transcript_ids)} (transcript_id: {tid})")
@@ -171,6 +190,7 @@ class FirefliesService:
                 continue
 
             title = summary.get("title") or "Untitled Meeting"
+            date = summary.get("date") or ""
             notes = (summary.get("notes") or "").strip()
             action_items = (summary.get("action_items") or "").strip()
 
@@ -178,24 +198,34 @@ class FirefliesService:
                 logger.debug(f"[Fireflies] Transcript {tid} ('{title}') has no notes or action items, skipping")
                 continue
 
+            # Build text section for LLM
             parts = [f"### {title}"]
             if notes:
                 parts.append(f"Notes:\n{notes}")
             if action_items:
                 parts.append(f"Action Items:\n{action_items}")
             sections.append("\n".join(parts))
-            logger.info(f"[Fireflies] Included transcript {tid} ('{title}')")
+
+            # Build structured meeting for frontend
+            meetings.append({
+                "id": summary.get("id", tid),
+                "title": title,
+                "date": date,
+                "notes": notes,
+                "action_items": action_items,
+            })
+            logger.info(f"[Fireflies] Included transcript {tid} ('{title}', date='{date}')")
 
         if not sections:
             logger.info(f"[Fireflies] No usable meeting summaries found for {email}")
-            return ""
+            return ("", [])
 
         combined = "\n\n---\n\n".join(sections)
         logger.info(
             f"[Fireflies] Compiled {len(sections)} meeting summaries "
             f"({len(combined)} chars) for {email}"
         )
-        return combined
+        return (combined, meetings)
 
 
 # Singleton instance

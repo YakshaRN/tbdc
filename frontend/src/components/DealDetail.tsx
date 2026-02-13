@@ -1,6 +1,6 @@
 "use client";
 
-import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, RevenueCustomer, PricingSummary as PricingSummaryType, PricingLineItem } from "@/types/deal";
+import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, RevenueCustomer, PricingSummary as PricingSummaryType, PricingLineItem, MeetingNote } from "@/types/deal";
 import {
   Globe,
   Building2,
@@ -27,6 +27,9 @@ import {
   Receipt,
   Package,
   CircleDot,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -36,6 +39,7 @@ interface DealDetailProps {
   analysis?: DealAnalysis | null;
   marketingMaterials?: MarketingMaterial[];
   similarCustomers?: SimilarCustomer[];
+  meetings?: MeetingNote[];
   isLoading?: boolean;
   isAnalysisLoading?: boolean;
   isReevaluating?: boolean;
@@ -47,6 +51,7 @@ export function DealDetail({
   analysis, 
   marketingMaterials = [],
   similarCustomers = [],
+  meetings = [],
   isLoading = false, 
   isAnalysisLoading = false,
   isReevaluating = false,
@@ -387,6 +392,31 @@ export function DealDetail({
               </div>
             )}
           </DetailCard>
+
+          {/* Meetings */}
+          <DetailCard title={`Meetings${meetings.length > 0 ? ` (${meetings.length})` : ''}`} icon={Calendar} accentColor="blue">
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="h-4 bg-gray-200 rounded w-40 skeleton mb-2" />
+                    <div className="h-3 bg-gray-200 rounded w-full skeleton" />
+                    <div className="h-3 bg-gray-200 rounded w-3/4 skeleton mt-1" />
+                  </div>
+                ))}
+              </div>
+            ) : meetings && meetings.length > 0 ? (
+              <div className="space-y-3">
+                {meetings.map((meeting, index) => (
+                  <MeetingCard key={meeting.id || index} meeting={meeting} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic text-center py-4">
+                No meeting notes available
+              </div>
+            )}
+          </DetailCard>
         </div>
 
         {/* Right Column - Scoring Rubric, ICP Mapping, Pricing */}
@@ -631,6 +661,96 @@ function CompanyTag({ label, value, colorClass, icon: Icon }: CompanyTagProps) {
       <Icon className="w-3.5 h-3.5" />
       <span className="text-xs text-gray-500">{label}:</span>
       <span>{value}</span>
+    </div>
+  );
+}
+
+interface MeetingCardProps {
+  meeting: MeetingNote;
+}
+
+function MeetingCard({ meeting }: MeetingCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const formattedDate = formatDate(meeting.date);
+  const hasNotes = meeting.notes && meeting.notes.trim() !== "";
+  const hasActionItems = meeting.action_items && meeting.action_items.trim() !== "";
+  const hasExpandableContent = hasNotes || hasActionItems;
+
+  return (
+    <div className="rounded-xl border border-gray-200 overflow-hidden bg-white hover:border-blue-200 transition-colors">
+      {/* Meeting Header - always visible */}
+      <button
+        onClick={() => hasExpandableContent && setIsExpanded(!isExpanded)}
+        className={clsx(
+          "w-full flex items-center gap-3 px-4 py-3 text-left",
+          hasExpandableContent && "cursor-pointer hover:bg-gray-50"
+        )}
+      >
+        <div className="p-1.5 rounded-lg bg-blue-50">
+          <Calendar className="w-3.5 h-3.5 text-blue-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {meeting.title || "Untitled Meeting"}
+          </p>
+          {formattedDate && (
+            <p className="text-xs text-gray-500 mt-0.5">{formattedDate}</p>
+          )}
+        </div>
+        {hasExpandableContent && (
+          isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          )
+        )}
+      </button>
+
+      {/* Expandable Content */}
+      {isExpanded && hasExpandableContent && (
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+          {hasNotes && (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Notes
+              </label>
+              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                  {meeting.notes}
+                </p>
+              </div>
+            </div>
+          )}
+          {hasActionItems && (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Action Items
+              </label>
+              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                  {meeting.action_items}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

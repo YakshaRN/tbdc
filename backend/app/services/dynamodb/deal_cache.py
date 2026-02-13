@@ -184,15 +184,15 @@ class DealAnalysisCache:
             return result[0]
         return None
     
-    def get_cached_data(self, deal_id: str) -> Optional[Tuple[DealAnalysis, List[Dict[str, Any]], List[Dict[str, Any]]]]:
+    def get_cached_data(self, deal_id: str) -> Optional[tuple]:
         """
-        Retrieve cached analysis, marketing materials, and similar customers for a deal.
+        Retrieve cached analysis, marketing materials, similar customers, and meetings for a deal.
         
         Args:
             deal_id: Zoho Deal ID
             
         Returns:
-            Tuple of (DealAnalysis, marketing_materials, similar_customers) if found, None otherwise
+            Tuple of (DealAnalysis, marketing_materials, similar_customers, meetings) if found, None otherwise
         """
         if not self.is_enabled:
             return None
@@ -220,8 +220,13 @@ class DealAnalysisCache:
                 if "similar_customers" in item and item["similar_customers"]:
                     similar_customers = json.loads(item["similar_customers"])
                 
+                # Get meetings if available
+                meetings = []
+                if "meetings" in item and item["meetings"]:
+                    meetings = json.loads(item["meetings"])
+                
                 logger.info(f"Cache HIT for deal {deal_id}")
-                return (DealAnalysis(**analysis_data), marketing_materials, similar_customers)
+                return (DealAnalysis(**analysis_data), marketing_materials, similar_customers, meetings)
             
             logger.debug(f"Cache MISS for deal {deal_id}")
             return None
@@ -241,16 +246,18 @@ class DealAnalysisCache:
         deal_id: str, 
         analysis: DealAnalysis,
         marketing_materials: Optional[List[Dict[str, Any]]] = None,
-        similar_customers: Optional[List[Dict[str, Any]]] = None
+        similar_customers: Optional[List[Dict[str, Any]]] = None,
+        meetings: Optional[List[Dict[str, Any]]] = None
     ) -> bool:
         """
-        Save analysis, marketing materials, and similar customers to cache.
+        Save analysis, marketing materials, similar customers, and meetings to cache.
         
         Args:
             deal_id: Zoho Deal ID
             analysis: DealAnalysis object to cache
             marketing_materials: List of marketing material dicts to cache
             similar_customers: List of similar customer dicts to cache
+            meetings: List of meeting note dicts to cache
             
         Returns:
             True if saved successfully, False otherwise
@@ -278,6 +285,7 @@ class DealAnalysisCache:
                 "analysis": json.dumps(analysis_dict),
                 "marketing_materials": json.dumps(marketing_materials or []),
                 "similar_customers": json.dumps(similar_customers or []),
+                "meetings": json.dumps(meetings or []),
                 "company_name": analysis_dict.get("company_name", "Unknown"),
                 "fit_score": analysis_dict.get("fit_score", 5),
                 "created_at": now,
@@ -285,7 +293,11 @@ class DealAnalysisCache:
             }
             
             table.put_item(Item=item)
-            logger.info(f"Cached deal analysis, {len(marketing_materials or [])} materials, {len(similar_customers or [])} similar customers for deal {deal_id}")
+            logger.info(
+                f"Cached deal analysis, {len(marketing_materials or [])} materials, "
+                f"{len(similar_customers or [])} similar customers, "
+                f"{len(meetings or [])} meetings for deal {deal_id}"
+            )
             return True
             
         except ClientError as e:

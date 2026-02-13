@@ -6,6 +6,15 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+class MeetingNote(BaseModel):
+    """A single Fireflies meeting transcript summary."""
+    id: str = Field(default="", description="Fireflies transcript ID")
+    title: str = Field(default="", description="Meeting title")
+    date: str = Field(default="", description="Meeting date (ISO timestamp or empty)")
+    notes: str = Field(default="", description="Meeting notes/summary")
+    action_items: str = Field(default="", description="Action items from the meeting")
+
+
 class RevenueCustomer(BaseModel):
     """Top revenue customer information."""
     name: str = Field(default="", description="Customer/company name")
@@ -192,6 +201,10 @@ class EnrichedDealResponse(BaseModel):
     similar_customers: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="Similar customers identified by LLM analysis"
+    )
+    meetings: List[MeetingNote] = Field(
+        default_factory=list,
+        description="Fireflies meeting transcripts with notes and action items"
     )
     
     class Config:

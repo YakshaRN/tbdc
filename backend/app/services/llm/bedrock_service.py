@@ -91,17 +91,17 @@ class BedrockService:
         max_tokens = max_tokens or settings.BEDROCK_MAX_TOKENS
         temperature = temperature if temperature is not None else settings.BEDROCK_TEMPERATURE
         
-        # Log the full prompt before the LLM call
-        logger.info("=" * 60)
-        logger.info("=== LLM PROMPT (invoke_claude) START ===")
-        logger.info(f"Model: {settings.BEDROCK_MODEL_ID} | max_tokens: {max_tokens} | temperature: {temperature}")
-        if system_prompt:
-            logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
-        else:
-            logger.info("System Prompt: (none)")
-        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
-        logger.info("=== LLM PROMPT (invoke_claude) END ===")
-        logger.info("=" * 60)
+        # # Log the full prompt before the LLM call
+        # logger.info("=" * 60)
+        # logger.info("=== LLM PROMPT (invoke_claude) START ===")
+        # logger.info(f"Model: {settings.BEDROCK_MODEL_ID} | max_tokens: {max_tokens} | temperature: {temperature}")
+        # if system_prompt:
+        #     logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
+        # else:
+        #     logger.info("System Prompt: (none)")
+        # logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        # logger.info("=== LLM PROMPT (invoke_claude) END ===")
+        # logger.info("=" * 60)
         
         # Build request body for Claude models
         body = {
@@ -142,18 +142,18 @@ class BedrockService:
                         f"Current response length: {len(response_text)} chars"
                     )
                 
-                # Log the full LLM response
-                logger.info(f"=== LLM RESPONSE START ===")
-                logger.info(f"Model: {settings.BEDROCK_MODEL_ID}")
-                logger.info(f"Stop reason: {stop_reason}")
-                logger.info(f"Response length: {len(response_text)} chars")
-                logger.info(f"Response:\n{response_text}")
-                logger.info(f"=== LLM RESPONSE END ===")
+                # # Log the full LLM response
+                # logger.info(f"=== LLM RESPONSE START ===")
+                # logger.info(f"Model: {settings.BEDROCK_MODEL_ID}")
+                # logger.info(f"Stop reason: {stop_reason}")
+                # logger.info(f"Response length: {len(response_text)} chars")
+                # logger.info(f"Response:\n{response_text}")
+                # logger.info(f"=== LLM RESPONSE END ===")
                 
-                # Also log token usage if available
-                if "usage" in response_body:
-                    usage = response_body["usage"]
-                    logger.info(f"Token usage - Input: {usage.get('input_tokens', 'N/A')}, Output: {usage.get('output_tokens', 'N/A')}")
+                # # Also log token usage if available
+                # if "usage" in response_body:
+                #     usage = response_body["usage"]
+                #     logger.info(f"Token usage - Input: {usage.get('input_tokens', 'N/A')}, Output: {usage.get('output_tokens', 'N/A')}")
                 
                 return response_text
             
@@ -271,11 +271,11 @@ Company Input:
         else:
             logger.debug(f"Analyzing lead with LLM...")
         
-        # Log the final prompt being sent to LLM
-        logger.info("=== LEAD ANALYSIS PROMPT START ===")
-        logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt[:500]}...")
-        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
-        logger.info("=== LEAD ANALYSIS PROMPT END ===")
+        # # Log the final prompt being sent to LLM
+        # logger.info("=== LEAD ANALYSIS PROMPT START ===")
+        # logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt[:500]}...")
+        # logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        # logger.info("=== LEAD ANALYSIS PROMPT END ===")
         
         try:
             response = self.bedrock.invoke_claude(

@@ -101,8 +101,12 @@ class ZohoCRMService:
         headers = await self._get_headers()
         url = f"{self._get_base_url()}{endpoint}"
         
-        logger.debug(f"Zoho API Request: {method} {url}")
-        logger.debug(f"Params: {params}")
+        logger.info(f"[Zoho] >>> {method} {endpoint}")
+        logger.info(f"[Zoho] Full URL: {url}")
+        if params:
+            logger.info(f"[Zoho] Params: {params}")
+        if json_data:
+            logger.info(f"[Zoho] Body: {json_data}")
         
         try:
             response = await client.request(
@@ -113,16 +117,20 @@ class ZohoCRMService:
                 json=json_data,
             )
             
+            logger.info(f"[Zoho] <<< {method} {endpoint} — status: {response.status_code}")
+            
             # Handle rate limiting
             if response.status_code == 429:
+                logger.error(f"[Zoho] Rate limited (429) on {method} {endpoint}")
                 raise RateLimitException()
             
             # Handle authentication errors (token might be invalid)
             if response.status_code == 401:
-                logger.warning("Token invalid, attempting refresh...")
+                logger.warning(f"[Zoho] Token invalid (401) on {method} {endpoint}, attempting refresh...")
                 await zoho_token_manager.refresh_access_token()
                 # Retry with new token
                 headers = await self._get_headers()
+                logger.info(f"[Zoho] Retrying {method} {endpoint} after token refresh")
                 response = await client.request(
                     method=method,
                     url=url,
@@ -130,20 +138,26 @@ class ZohoCRMService:
                     params=params,
                     json=json_data,
                 )
+                logger.info(f"[Zoho] <<< {method} {endpoint} (retry) — status: {response.status_code}")
             
             if response.status_code >= 400:
                 error_data = response.json() if response.text else {}
                 error_message = error_data.get("message", response.text)
-                logger.error(f"Zoho API Error: {response.status_code} - {error_message}")
+                logger.error(f"[Zoho] API Error on {method} {endpoint}: {response.status_code} - {error_message}")
                 raise ZohoAPIException(
                     detail=f"Zoho API Error: {error_message}",
                     status_code=response.status_code,
                 )
             
-            return response.json() if response.text else {}
+            result = response.json() if response.text else {}
+            # Log record count if present
+            record_count = len(result.get("data", [])) if isinstance(result.get("data"), list) else None
+            if record_count is not None:
+                logger.info(f"[Zoho] {method} {endpoint} returned {record_count} record(s)")
+            return result
             
         except httpx.RequestError as e:
-            logger.error(f"HTTP Request Error: {e}")
+            logger.error(f"[Zoho] Network error on {method} {endpoint}: {e}")
             raise ZohoAPIException(detail=f"Network error: {str(e)}")
     
     # ==================== LEAD OPERATIONS ====================
@@ -377,16 +391,18 @@ class ZohoCRMService:
             
             url = f"{self._get_base_url()}/Leads/{lead_id}/Attachments/{attachment_id}"
             
+            logger.info(f"[Zoho] >>> GET /Leads/{lead_id}/Attachments/{attachment_id} (download)")
             response = await client.get(url, headers=headers)
+            logger.info(f"[Zoho] <<< GET /Leads/{lead_id}/Attachments/{attachment_id} — status: {response.status_code}, size: {len(response.content)} bytes")
             
             if response.status_code == 200:
                 return response.content
             else:
-                logger.warning(f"Failed to download attachment {attachment_id}: {response.status_code}")
+                logger.warning(f"[Zoho] Failed to download attachment {attachment_id}: {response.status_code}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error downloading attachment {attachment_id}: {e}")
+            logger.error(f"[Zoho] Error downloading attachment {attachment_id}: {e}")
             return None
     
     async def get_lead_attachments_with_content(
@@ -663,16 +679,18 @@ class ZohoCRMService:
             
             url = f"{self._get_base_url()}/Deals/{deal_id}/Attachments/{attachment_id}"
             
+            logger.info(f"[Zoho] >>> GET /Deals/{deal_id}/Attachments/{attachment_id} (download)")
             response = await client.get(url, headers=headers)
+            logger.info(f"[Zoho] <<< GET /Deals/{deal_id}/Attachments/{attachment_id} — status: {response.status_code}, size: {len(response.content)} bytes")
             
             if response.status_code == 200:
                 return response.content
             else:
-                logger.warning(f"Failed to download deal attachment {attachment_id}: {response.status_code}")
+                logger.warning(f"[Zoho] Failed to download deal attachment {attachment_id}: {response.status_code}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error downloading deal attachment {attachment_id}: {e}")
+            logger.error(f"[Zoho] Error downloading deal attachment {attachment_id}: {e}")
             return None
     
     async def get_deal_attachments_with_content(

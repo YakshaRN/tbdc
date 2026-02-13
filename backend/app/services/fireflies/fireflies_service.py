@@ -195,7 +195,6 @@ class FirefliesService:
             f"[Fireflies] Compiled {len(sections)} meeting summaries "
             f"({len(combined)} chars) for {email}"
         )
-        logger.debug(f"[Fireflies] Combined meeting notes:\n{combined[:1000]}...")
         return combined
 
 

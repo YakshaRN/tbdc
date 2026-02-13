@@ -12,6 +12,7 @@ from app.services.llm.similar_customers_service import similar_customers_service
 from app.services.dynamodb.deal_cache import deal_analysis_cache
 from app.services.vector.marketing_vector_store import marketing_vector_store
 from app.services.document.extractor import document_extractor
+from app.services.fireflies.fireflies_service import fireflies_service
 from app.schemas.deal import (
     DealResponse,
     DealListResponse,
@@ -224,12 +225,41 @@ async def get_deal(
                 except Exception as e:
                     logger.warning(f"Error fetching/extracting deal attachments: {e}")
                 
-                # Step 2c: Generate new analysis using Deal Analysis Service directly
+                # Step 2c: Fetch Fireflies meeting notes using Contact email
+                meeting_text = ""
+                try:
+                    if fireflies_service.is_enabled:
+                        contact_email = ""
+                        contact = deal_data.get("Contact_Name")
+                        if isinstance(contact, dict) and contact.get("id"):
+                            try:
+                                contact_result = await zoho_crm_service.get_contact_by_id(contact["id"])
+                                contact_data = (contact_result.get("data") or [{}])[0]
+                                contact_email = contact_data.get("Email", "")
+                                if contact_email:
+                                    logger.info(f"Fetched contact email: {contact_email}")
+                            except Exception as e:
+                                logger.warning(f"Could not fetch contact email: {e}")
+                        
+                        if contact_email:
+                            logger.info(f"Matching Fireflies transcripts for contact: {contact_email}")
+                            meeting_text = fireflies_service.get_meeting_notes_for_email(contact_email)
+                            if meeting_text:
+                                logger.info(f"Got {len(meeting_text)} chars of meeting notes from Fireflies")
+                        else:
+                            logger.debug("No contact email found on deal for Fireflies matching")
+                    else:
+                        logger.debug("Fireflies integration not configured (FIREFLIES_API_KEY not set)")
+                except Exception as e:
+                    logger.warning(f"Error fetching Fireflies meeting notes: {e}")
+                
+                # Step 2d: Generate new analysis using Deal Analysis Service directly
                 # Use the dedicated deal analysis service with deal-specific prompts
                 logger.info(f"Generating LLM analysis for deal {deal_id}")
                 analysis = deal_analysis_service.analyze_deal(
                     deal_data=deal_data,
-                    attachment_text=attachment_text if attachment_text else None
+                    attachment_text=attachment_text if attachment_text else None,
+                    meeting_text=meeting_text if meeting_text else None
                 )
                 
                 # Add support_required from Zoho if not already set

@@ -117,7 +117,8 @@ class DealAnalysisService:
     def analyze_deal(
         self, 
         deal_data: Dict[str, Any],
-        attachment_text: Optional[str] = None
+        attachment_text: Optional[str] = None,
+        meeting_text: Optional[str] = None
     ) -> DealAnalysis:
         """
         Analyze deal data using LLM and return structured insights.
@@ -130,12 +131,13 @@ class DealAnalysisService:
             deal_data: Deal data from Zoho CRM
             attachment_text: Optional extracted text from deal attachments 
                             (pitch decks, PDFs, documents, etc.)
+            meeting_text: Optional meeting notes from Fireflies.ai
             
         Returns:
             DealAnalysis object with AI-generated insights
         """
         # Format deal data for the prompt
-        formatted_data = self._format_deal_data(deal_data, attachment_text)
+        formatted_data = self._format_deal_data(deal_data, attachment_text, meeting_text)
         
         # ---- LLM Call 1: Main deal analysis ----
         analysis_data = self._run_main_analysis(formatted_data, attachment_text)
@@ -359,7 +361,8 @@ class DealAnalysisService:
     def _format_deal_data(
         self, 
         deal_data: Dict[str, Any],
-        attachment_text: Optional[str] = None
+        attachment_text: Optional[str] = None,
+        meeting_text: Optional[str] = None
     ) -> str:
         """
         Format deal data as readable text for the LLM.
@@ -367,6 +370,7 @@ class DealAnalysisService:
         Args:
             deal_data: Deal data from Zoho CRM
             attachment_text: Optional extracted text from attachments
+            meeting_text: Optional meeting notes from Fireflies.ai
             
         Returns:
             Formatted string for LLM prompt
@@ -425,6 +429,12 @@ class DealAnalysisService:
             result += "\n\n=== ATTACHED DOCUMENTS (Pitch Deck / PDF / Slides) ===\n"
             result += attachment_text
             result += "\n=== END OF ATTACHED DOCUMENTS ==="
+        
+        # Add Fireflies meeting notes if available
+        if meeting_text and meeting_text.strip():
+            result += "\n\n=== MEETING NOTES (Fireflies.ai) ===\n"
+            result += meeting_text
+            result += "\n=== END OF MEETING NOTES ==="
         
         return result
     

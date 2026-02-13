@@ -81,6 +81,10 @@ class Settings:
     DYNAMODB_PROMPTS_TABLE_NAME: str = os.getenv("DYNAMODB_PROMPTS_TABLE_NAME", "prompts")
     DYNAMODB_ENABLED: bool = os.getenv("DYNAMODB_ENABLED", "true").lower() in ("true", "1", "yes")
     
+    # Fireflies.ai Configuration
+    FIREFLIES_API_KEY: str = os.getenv("FIREFLIES_API_KEY", "")
+    FIREFLIES_API_URL: str = os.getenv("FIREFLIES_API_URL", "https://api.fireflies.ai/graphql")
+    
     # JWT Authentication
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "tbdc-super-secret-key-change-in-production")
     JWT_EXPIRE_HOURS: int = int(os.getenv("JWT_EXPIRE_HOURS", "24"))

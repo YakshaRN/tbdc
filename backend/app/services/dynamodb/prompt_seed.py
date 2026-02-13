@@ -89,6 +89,7 @@ For the following 4 fields, you MUST ONLY reformat and polish the data that alre
 ## Evaluation Rules
 - Always review the company's official website first (homepage, product, solutions, or industries pages).
 - Use the deal information and any attached documents to understand the company.
+- If meeting notes from Fireflies.ai are provided, use them as additional context for understanding the company's needs, progress, and team dynamics. Meeting notes are real internal discussions -- use the insights to improve your analysis accuracy. Do NOT fabricate meeting content.
 - If the website is vague or unclear, you must explicitly state this and lower your confidence.
 - If the product remains unclear after reviewing multiple pages, explicitly say so and reduce confidence.
 - Never invent product features or use cases.

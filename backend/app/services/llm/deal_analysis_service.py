@@ -4,82 +4,16 @@ Deal Analysis Service for the Application Module.
 Provides AI-powered analysis of deal data including:
 - Company identification
 - Revenue from Top 5 Customers
-- ICP Mapping for Canada
+- ICP Mapping with Canada-specific actionable insights
 - Scoring Rubric and Fit Assessment
-- Support Required from TBDC
+- Support Required with actionable recommendations
 """
 import json
 from typing import Dict, Any, Optional, List
 from loguru import logger
 
 from app.services.llm.bedrock_service import bedrock_service
-from app.schemas.deal_analysis import DealAnalysis, RevenueCustomer, PricingSummary, PricingLineItem
-
-
-# TBDC Service Pricing Catalog - used by LLM to recommend services
-TBDC_PRICING_CATALOG = {
-    "core_services": [
-        {
-            "name": "Scout Report",
-            "description": "Comprehensive market analysis",
-            "unit_price_eur": 4000,
-        },
-        {
-            "name": "Mentor Hours (x4 hours)",
-            "description": "Base mentorship sessions",
-            "unit_price_eur": 2000,
-        },
-        {
-            "name": "Startup Ecosystem Events",
-            "description": "Access to startup events",
-            "unit_price_eur": 0,
-        },
-        {
-            "name": "Investor & Regulatory Sessions",
-            "description": "Sessions with IP lawyer",
-            "unit_price_eur": 0,
-        },
-        {
-            "name": "Office Access & Meeting Rooms",
-            "description": "Workspace and facilities",
-            "unit_price_eur": 0,
-        },
-        {
-            "name": "$500k Tech Credits",
-            "description": "Technology platform credits",
-            "unit_price_eur": 0,
-        },
-    ],
-    "customer_meetings": {
-        "enterprise_meetings": {
-            "description": "High-value customer engagement sessions",
-            "unit_price_eur": 2000,
-            "default": 1,
-        },
-        "smb_meetings": {
-            "description": "SMB customer engagement sessions",
-            "unit_price_eur": 1500,
-            "default": 3,
-        },
-    },
-    "investor_meetings": {
-        "category_a": {
-            "description": "High-value investor introduction sessions",
-            "unit_price_eur": 2500,
-        },
-        "category_b": {
-            "description": "Investor introduction sessions",
-            "unit_price_eur": 1500,
-        },
-    },
-    "additional_services": [
-        {
-            "name": "Deal Memo",
-            "description": "Professional deal documentation",
-            "unit_price_eur": 2000,
-        },
-    ],
-}
+from app.schemas.deal_analysis import DealAnalysis, RevenueCustomer
 
 
 # Prompts are loaded from prompt_manager (DynamoDB only).
@@ -124,7 +58,7 @@ class DealAnalysisService:
         Analyze deal data using LLM and return structured insights.
         
         Makes two separate LLM calls:
-        1. Main analysis - company info, ICP, pricing, support, etc.
+        1. Main analysis - company info, ICP, support insights, recommendations, etc.
         2. Scoring rubric - dedicated scoring with detailed criteria
         
         Args:
@@ -151,21 +85,6 @@ class DealAnalysisService:
                 RevenueCustomer(**customer) if isinstance(customer, dict) else customer
                 for customer in analysis_data["revenue_top_5_customers"]
             ]
-        
-        # Convert pricing_summary to proper format
-        if "pricing_summary" in analysis_data and isinstance(analysis_data["pricing_summary"], dict):
-            pricing_data = analysis_data["pricing_summary"]
-            if "recommended_services" in pricing_data:
-                pricing_data["recommended_services"] = [
-                    PricingLineItem(**item) if isinstance(item, dict) else item
-                    for item in pricing_data["recommended_services"]
-                ]
-            # Recalculate total to ensure accuracy
-            pricing_data["total_cost_eur"] = sum(
-                item.total_price_eur if isinstance(item, PricingLineItem) else item.get("total_price_eur", 0)
-                for item in pricing_data.get("recommended_services", [])
-            )
-            analysis_data["pricing_summary"] = PricingSummary(**pricing_data)
         
         # ---- LLM Call 2: Scoring rubric (separate, focused call) ----
         logger.info("[DealAnalysis] LLM Call 2/2: Sending scoring rubric request to Bedrock")
@@ -579,7 +498,6 @@ class DealAnalysisService:
             "likely_icp_canada": "Unknown",
             "support_required": "Manual review required",
             "support_recommendations": ["Manual assessment needed due to analysis failure"],
-            "pricing_summary": None,
             "key_insights": ["Analysis could not be completed - manual review required"],
             "questions_to_ask": [
                 "What is your core product and who is your primary customer?",

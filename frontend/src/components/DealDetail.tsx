@@ -1,6 +1,6 @@
 "use client";
 
-import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, RevenueCustomer, PricingSummary as PricingSummaryType, PricingLineItem, MeetingNote } from "@/types/deal";
+import { Deal, DealAnalysis, MarketingMaterial, SimilarCustomer, MeetingNote } from "@/types/deal";
 import {
   Globe,
   Building2,
@@ -8,13 +8,10 @@ import {
   TrendingUp,
   Layers,
   Briefcase,
-  Tag,
   Users,
-  MessageCircleQuestion,
   Megaphone,
   DollarSign,
   ExternalLink,
-  Copy,
   CheckCircle2,
   Lightbulb,
   Zap,
@@ -24,9 +21,6 @@ import {
   LifeBuoy,
   ClipboardList,
   MapPinned,
-  Receipt,
-  Package,
-  CircleDot,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -89,26 +83,6 @@ export function DealDetail({
     }).format(amount);
   };
 
-  // Format EUR currency
-  const formatEUR = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  // Get category display label
-  const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      core_service: "Core Service",
-      customer_meeting: "Customer Meeting",
-      investor_meeting: "Investor Meeting",
-      additional_service: "Additional Service",
-    };
-    return labels[category] || category;
-  };
 
   return (
     <div className="h-full overflow-y-auto bg-gray-50">
@@ -321,16 +295,24 @@ export function DealDetail({
             {isAnalysisLoading ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="h-4 bg-gray-200 rounded w-32 skeleton mb-2" />
-                    <div className="h-3 bg-gray-200 rounded w-full skeleton" />
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-gray-200 skeleton flex-shrink-0 mt-1.5" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-32 skeleton mb-2" />
+                      <div className="h-3 bg-gray-200 rounded w-full skeleton" />
+                    </div>
                   </div>
                 ))}
               </div>
             ) : analysis?.top_5_customers_summary && analysis.top_5_customers_summary.trim() !== "" ? (
-              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{analysis.top_5_customers_summary}</p>
-              </div>
+              <ul className="space-y-2">
+                {parseTextToItems(analysis.top_5_customers_summary).map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 p-3 bg-gradient-to-r from-blue-50/60 to-indigo-50/60 rounded-xl border border-blue-100/60 hover:border-blue-200 transition-colors">
+                    <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0 mt-1.5" />
+                    <span className="text-sm text-gray-800 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
             ) : (
               <div className="text-sm text-gray-400 italic text-center py-4">
                 Customer data not available
@@ -378,13 +360,52 @@ export function DealDetail({
           <DetailCard title="Support Required" icon={LifeBuoy} accentColor="purple">
             {isAnalysisLoading ? (
               <div className="space-y-3">
-                <div className="h-20 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-5 bg-gray-200 rounded w-3/4 skeleton" />
+                <div className="space-y-2 mt-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-start gap-2 p-2">
+                      <div className="w-4 h-4 rounded bg-gray-200 skeleton flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 h-4 bg-gray-200 rounded skeleton" />
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : analysis?.support_required && analysis.support_required.trim() !== "" ? (
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
-                  {analysis.support_required}
-                </p>
+            ) : (analysis?.support_required && analysis.support_required.trim() !== "") || 
+                (analysis?.support_recommendations && analysis.support_recommendations.length > 0) ? (
+              <div className="space-y-4">
+                {/* Support Areas */}
+                {analysis?.support_required && analysis.support_required.trim() !== "" && (
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
+                      Key Support Areas
+                    </label>
+                    <ul className="space-y-2">
+                      {parseTextToItems(analysis.support_required).map((item, i) => (
+                        <li key={i} className="flex items-start gap-3 p-3 bg-gradient-to-r from-purple-50/60 to-pink-50/60 rounded-xl border border-purple-100/60">
+                          <div className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0 mt-1.5" />
+                          <span className="text-sm text-gray-800 leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Actionable Recommendations */}
+                {analysis?.support_recommendations && analysis.support_recommendations.length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
+                      Recommended Actions
+                    </label>
+                    <ul className="space-y-2">
+                      {analysis.support_recommendations.map((rec, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
+                          <Zap className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-sm text-gray-400 italic text-center py-4">
@@ -419,7 +440,7 @@ export function DealDetail({
           </DetailCard>
         </div>
 
-        {/* Right Column - Scoring Rubric, ICP Mapping, Pricing */}
+        {/* Right Column - Scoring Rubric, ICP Mapping */}
         <div className="col-span-5 space-y-6">
           {/* Scoring Rubric */}
           <DetailCard title="Scoring Rubric" icon={ClipboardList} accentColor="emerald">
@@ -493,11 +514,47 @@ export function DealDetail({
           <DetailCard title="ICP Mapping" icon={MapPinned} accentColor="blue">
             {isAnalysisLoading ? (
               <div className="space-y-3">
-                <div className="h-20 bg-gray-200 rounded-lg skeleton" />
+                <div className="h-5 bg-gray-200 rounded w-3/4 skeleton" />
+                <div className="space-y-2 mt-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-start gap-2 p-2">
+                      <div className="w-4 h-4 rounded bg-gray-200 skeleton flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 h-4 bg-gray-200 rounded skeleton" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : analysis?.icp_mapping && analysis.icp_mapping.trim() !== "" && analysis.icp_mapping !== "Unknown" ? (
-              <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{analysis.icp_mapping}</p>
+              <div className="space-y-4">
+                {/* Likely ICP in Canada - Highlight Card */}
+                {analysis?.likely_icp_canada && analysis.likely_icp_canada !== "Unknown" && (
+                  <div className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 rounded-xl border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white shrink-0">
+                        <Target className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-1">Likely ICP in Canada</p>
+                        <p className="text-sm text-gray-800 font-medium leading-relaxed">{analysis.likely_icp_canada}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ICP Insights as Bullet Points */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
+                    Target Market Insights
+                  </label>
+                  <ul className="space-y-2">
+                    {parseTextToItems(analysis.icp_mapping).map((item, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
+                        <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ) : (
               <div className="text-sm text-gray-400 italic text-center py-4">
@@ -506,112 +563,29 @@ export function DealDetail({
             )}
           </DetailCard>
 
-          {/* Pricing */}
-          <DetailCard title="Pricing" icon={Receipt} accentColor="emerald">
-            {isAnalysisLoading ? (
-              <div className="space-y-3">
-                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
-                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
-                <div className="h-10 bg-gray-200 rounded-lg skeleton" />
-                <div className="h-8 bg-gray-200 rounded-lg skeleton mt-4" />
-              </div>
-            ) : analysis?.pricing_summary &&
-              analysis.pricing_summary.recommended_services &&
-              analysis.pricing_summary.recommended_services.length > 0 ? (
-              <div className="space-y-4">
-                {/* Service Line Items */}
-                <div className="overflow-hidden rounded-xl border border-gray-200">
-                  {/* Table Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-                    <div className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Service</div>
-                    <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Qty</div>
-                    <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Unit Price</div>
-                    <div className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Total</div>
-                  </div>
-                  {/* Line Items */}
-                  {analysis.pricing_summary.recommended_services.map((item, index) => {
-                    const isIncluded = item.unit_price_eur === 0;
-                    const categoryLabel = getCategoryLabel(item.category);
-                    return (
-                      <div
-                        key={index}
-                        className={clsx(
-                          "grid grid-cols-12 gap-2 px-4 py-3 items-center",
-                          index % 2 === 0 ? "bg-white" : "bg-gray-50/50",
-                          index < analysis.pricing_summary!.recommended_services.length - 1 && "border-b border-gray-100"
-                        )}
-                      >
-                        <div className="col-span-5">
-                          <div className="flex items-start gap-2">
-                            <CircleDot className={clsx(
-                              "w-3.5 h-3.5 mt-0.5 flex-shrink-0",
-                              isIncluded ? "text-emerald-400" : "text-blue-400"
-                            )} />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 leading-tight">{item.service_name}</p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">{categoryLabel}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="col-span-2 text-sm text-gray-600 text-center">{item.quantity}</div>
-                        <div className="col-span-2 text-sm text-gray-600 text-right">
-                          {isIncluded ? (
-                            <span className="text-emerald-600 font-medium text-xs">Included</span>
-                          ) : (
-                            formatEUR(item.unit_price_eur)
-                          )}
-                        </div>
-                        <div className="col-span-3 text-sm font-medium text-right">
-                          {isIncluded ? (
-                            <span className="text-emerald-600 text-xs">EUR 0</span>
-                          ) : (
-                            <span className="text-gray-900">{formatEUR(item.total_price_eur)}</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* Total Row */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200">
-                    <div className="col-span-9">
-                      <span className="text-sm font-bold text-gray-900">Estimated Total</span>
-                    </div>
-                    <div className="col-span-3 text-right">
-                      <span className="text-base font-bold text-blue-700">
-                        {formatEUR(analysis.pricing_summary.total_cost_eur)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Pricing Notes */}
-                {analysis.pricing_summary.pricing_notes &&
-                  analysis.pricing_summary.pricing_notes.length > 0 && (
-                  <div className="pt-2">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-2">
-                      Pricing Rationale
-                    </label>
-                    <ul className="space-y-1.5">
-                      {analysis.pricing_summary.pricing_notes.map((note, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                          <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>
-                          <span>{note}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-400 italic text-center py-4">
-                Pricing summary not available
-              </div>
-            )}
-          </DetailCard>
         </div>
       </div>
     </div>
   );
+}
+
+// Helper: Parse a text block into individual bullet-point items
+function parseTextToItems(text: string): string[] {
+  if (!text || text.trim() === "") return [];
+  
+  // Split by newlines
+  const lines = text.split(/\n/).map(line => line.trim()).filter(Boolean);
+  
+  // If only one line and it's long, try splitting by sentences or semicolons
+  if (lines.length === 1 && lines[0].length > 120) {
+    const parts = lines[0].split(/[;]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) return parts;
+  }
+  
+  // Clean up each line: remove leading bullets, dashes, numbers, etc.
+  return lines.map(line => 
+    line.replace(/^[-•–—*]\s*/, "").replace(/^\d+[.)]\s*/, "").trim()
+  ).filter(Boolean);
 }
 
 // Subcomponents

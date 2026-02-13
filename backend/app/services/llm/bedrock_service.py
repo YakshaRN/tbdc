@@ -91,6 +91,18 @@ class BedrockService:
         max_tokens = max_tokens or settings.BEDROCK_MAX_TOKENS
         temperature = temperature if temperature is not None else settings.BEDROCK_TEMPERATURE
         
+        # Log the full prompt before the LLM call
+        logger.info("=" * 60)
+        logger.info("=== LLM PROMPT (invoke_claude) START ===")
+        logger.info(f"Model: {settings.BEDROCK_MODEL_ID} | max_tokens: {max_tokens} | temperature: {temperature}")
+        if system_prompt:
+            logger.info(f"System Prompt ({len(system_prompt)} chars):\n{system_prompt}")
+        else:
+            logger.info("System Prompt: (none)")
+        logger.info(f"User Prompt ({len(prompt)} chars):\n{prompt}")
+        logger.info("=== LLM PROMPT (invoke_claude) END ===")
+        logger.info("=" * 60)
+        
         # Build request body for Claude models
         body = {
             "anthropic_version": "bedrock-2023-05-31",

@@ -5,6 +5,7 @@ Fetches meeting transcripts from Fireflies GraphQL API,
 filters by participant email, and returns combined meeting
 notes and action items for use in deal analysis.
 """
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import json
 import httpx
@@ -131,7 +132,15 @@ class FirefliesService:
 
         summary = transcript.get("summary") or {}
         title = transcript.get("title", "")
-        date = transcript.get("date", "")
+        raw_date = transcript.get("date")
+        # Fireflies returns date as a Unix timestamp in milliseconds — convert to ISO string
+        if isinstance(raw_date, (int, float)) and raw_date:
+            try:
+                date = datetime.fromtimestamp(raw_date / 1000, tz=timezone.utc).isoformat()
+            except (OSError, ValueError):
+                date = str(raw_date)
+        else:
+            date = str(raw_date) if raw_date else ""
         notes = summary.get("notes", "")
         action_items = summary.get("action_items", "")
         logger.info(

@@ -15,7 +15,7 @@ def setup_logging():
     logger.remove()
     
     # Add console handler with appropriate level
-    log_level = "DEBUG" if settings.DEBUG else "INFO"
+    log_level = "INFO"
     
     logger.add(
         sys.stdout,

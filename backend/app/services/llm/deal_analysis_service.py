@@ -140,7 +140,9 @@ class DealAnalysisService:
         formatted_data = self._format_deal_data(deal_data, attachment_text, meeting_text)
         
         # ---- LLM Call 1: Main deal analysis ----
+        logger.info("[DealAnalysis] LLM Call 1/2: Sending main deal analysis request to Bedrock")
         analysis_data = self._run_main_analysis(formatted_data, attachment_text)
+        logger.info(f"[DealAnalysis] LLM Call 1/2 done: Got {len(analysis_data)} fields from main analysis")
         
         # Convert revenue_top_5_customers to proper format
         if "revenue_top_5_customers" in analysis_data:
@@ -165,7 +167,9 @@ class DealAnalysisService:
             analysis_data["pricing_summary"] = PricingSummary(**pricing_data)
         
         # ---- LLM Call 2: Scoring rubric (separate, focused call) ----
+        logger.info("[DealAnalysis] LLM Call 2/2: Sending scoring rubric request to Bedrock")
         scoring_data = self._run_scoring_rubric(formatted_data, analysis_data)
+        logger.info(f"[DealAnalysis] LLM Call 2/2 done: fit_score={scoring_data.get('fit_score', 'N/A')}")
         
         # Merge scoring into analysis
         analysis_data["scoring_rubric"] = scoring_data.get("scoring_rubric", {

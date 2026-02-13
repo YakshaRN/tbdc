@@ -123,20 +123,24 @@ async def get_deal(
     - refresh_analysis=true: Force regenerate analysis (ignore cache)
     """
     try:
+        logger.info(f"[Deal {deal_id}] === START get_deal (skip_analysis={skip_analysis}, refresh_analysis={refresh_analysis}) ===")
+        
         # Step 1: Fetch deal data from Zoho
+        logger.info(f"[Deal {deal_id}] Step 1: Fetching deal data from Zoho CRM")
         result = await zoho_crm_service.get_deal_by_id(deal_id)
         
         if not result.get("data"):
             raise HTTPException(status_code=404, detail="Deal not found")
         
         deal_data = result["data"][0]
+        logger.info(f"[Deal {deal_id}] Step 1 done: Deal fetched — '{deal_data.get('Deal_Name', 'N/A')}'")
         
         # Step 2: Handle analysis
         marketing_materials = []
         similar_customers = []
         
         if skip_analysis:
-            # Return default analysis if explicitly skipped
+            logger.info(f"[Deal {deal_id}] Analysis skipped by user request")
             analysis = DealAnalysis(
                 company_name=deal_data.get("Deal_Name") or "Unknown",
                 country="Unknown",
@@ -160,8 +164,7 @@ async def get_deal(
             analysis_available = False
             from_cache = False
         elif not bedrock_service.is_configured:
-            # Bedrock not configured
-            logger.warning("AWS Bedrock not configured, returning default analysis")
+            logger.warning(f"[Deal {deal_id}] AWS Bedrock not configured, returning default analysis")
             analysis = DealAnalysis(
                 company_name=deal_data.get("Deal_Name") or "Unknown",
                 country="Unknown",
@@ -191,76 +194,80 @@ async def get_deal(
             analysis_available = False
             from_cache = False
         else:
-            # Step 2a: Check DynamoDB cache first (unless refresh requested)
+            # Step 2: Check DynamoDB cache (unless refresh requested)
             cached_data = None
             
             if not refresh_analysis and deal_analysis_cache.is_enabled:
+                logger.info(f"[Deal {deal_id}] Step 2: Checking DynamoDB cache")
                 cached_data = deal_analysis_cache.get_cached_data(deal_id)
             
             if cached_data:
-                # Use cached analysis, marketing materials, and similar customers
                 analysis, marketing_materials, similar_customers = cached_data
-                logger.info(f"Using cached data for deal {deal_id}: {len(marketing_materials)} materials, {len(similar_customers)} similar customers")
+                logger.info(f"[Deal {deal_id}] Step 2 done: Cache HIT — {len(marketing_materials)} materials, {len(similar_customers)} similar customers")
                 analysis_available = True
                 from_cache = True
             else:
-                # Step 2b: Fetch and extract text from attachments (pitch decks, PDFs, etc.)
+                if refresh_analysis:
+                    logger.info(f"[Deal {deal_id}] Step 2: Cache skipped (refresh_analysis=true)")
+                else:
+                    logger.info(f"[Deal {deal_id}] Step 2 done: Cache MISS — running full analysis pipeline")
+                
+                # Step 3: Fetch and extract text from attachments
                 attachment_text = ""
                 try:
-                    logger.info(f"Fetching attachments for deal {deal_id}...")
+                    logger.info(f"[Deal {deal_id}] Step 3: Fetching attachments from Zoho CRM")
                     attachments = await zoho_crm_service.get_deal_attachments_with_content(deal_id)
                     
                     if attachments:
-                        logger.info(f"Found {len(attachments)} attachments for deal {deal_id}")
-                        
-                        # Extract text from documents
+                        logger.info(f"[Deal {deal_id}] Step 3: Extracting text from {len(attachments)} attachment(s)")
                         extractions = document_extractor.extract_from_attachments(attachments)
                         
                         if extractions:
                             attachment_text = document_extractor.combine_extracted_text(extractions)
-                            logger.info(f"Extracted {len(attachment_text)} chars from {len(extractions)} documents")
+                            logger.info(f"[Deal {deal_id}] Step 3 done: Extracted {len(attachment_text)} chars from {len(extractions)} document(s)")
+                        else:
+                            logger.info(f"[Deal {deal_id}] Step 3 done: No text extracted from attachments")
                     else:
-                        logger.debug(f"No attachments found for deal {deal_id}")
+                        logger.info(f"[Deal {deal_id}] Step 3 done: No attachments found")
                         
                 except Exception as e:
-                    logger.warning(f"Error fetching/extracting deal attachments: {e}")
+                    logger.warning(f"[Deal {deal_id}] Step 3 failed: {e}")
                 
-                # Step 2c: Fetch Fireflies meeting notes using Contact email
+                # Step 4: Fetch Fireflies meeting notes
                 meeting_text = ""
                 try:
                     if fireflies_service.is_enabled:
                         contact_email = ""
                         contact = deal_data.get("Contact_Name")
                         if isinstance(contact, dict) and contact.get("id"):
+                            logger.info(f"[Deal {deal_id}] Step 4: Fetching contact email from Zoho (contact_id: {contact['id']})")
                             try:
                                 contact_result = await zoho_crm_service.get_contact_by_id(contact["id"])
                                 contact_data = (contact_result.get("data") or [{}])[0]
                                 contact_email = contact_data.get("Email", "")
-                                if contact_email:
-                                    logger.info(f"Fetched contact email: {contact_email}")
+                                logger.info(f"[Deal {deal_id}] Step 4: Contact email resolved — {contact_email or '(empty)'}")
                             except Exception as e:
-                                logger.warning(f"Could not fetch contact email: {e}")
+                                logger.warning(f"[Deal {deal_id}] Step 4: Could not fetch contact email — {e}")
                         
                         if contact_email:
-                            logger.info(f"Matching Fireflies transcripts for contact: {contact_email}")
+                            logger.info(f"[Deal {deal_id}] Step 4: Fetching Fireflies meeting notes for {contact_email}")
                             meeting_text = fireflies_service.get_meeting_notes_for_email(contact_email)
-                            if meeting_text:
-                                logger.info(f"Got {len(meeting_text)} chars of meeting notes from Fireflies")
+                            logger.info(f"[Deal {deal_id}] Step 4 done: Got {len(meeting_text)} chars of meeting notes")
                         else:
-                            logger.debug("No contact email found on deal for Fireflies matching")
+                            logger.info(f"[Deal {deal_id}] Step 4 done: No contact email — skipping Fireflies")
                     else:
-                        logger.debug("Fireflies integration not configured (FIREFLIES_API_KEY not set)")
+                        logger.info(f"[Deal {deal_id}] Step 4 done: Fireflies not configured — skipped")
                 except Exception as e:
-                    logger.warning(f"Error fetching Fireflies meeting notes: {e}")
+                    logger.warning(f"[Deal {deal_id}] Step 4 failed: {e}")
                 
-                # Step 2d: Generate new analysis using Deal Analysis Service directly
-                # Use the dedicated deal analysis service with deal-specific prompts
-                logger.info(f"Generating LLM analysis for deal {deal_id}")
+                # Step 5: Run LLM deal analysis (main analysis + scoring rubric)
+                logger.info(f"[Deal {deal_id}] Step 5: Running LLM deal analysis (attachment_text={len(attachment_text)} chars, meeting_text={len(meeting_text)} chars)")
                 analysis = deal_analysis_service.analyze_deal(
                     deal_data=deal_data,
                     attachment_text=attachment_text if attachment_text else None,
                     meeting_text=meeting_text if meeting_text else None
                 )
+                logger.info(f"[Deal {deal_id}] Step 5 done: LLM analysis complete — fit_score={analysis.fit_score}, confidence={analysis.confidence_level}")
                 
                 # Add support_required from Zoho if not already set
                 if not analysis.support_required and deal_data.get("Support_Required"):
@@ -269,8 +276,7 @@ async def get_deal(
                 analysis_available = True
                 from_cache = False
                 
-                # Step 2d: Get relevant marketing materials (if indexed)
-                # Create a minimal data dict for marketing material search
+                # Step 6: Search marketing materials
                 search_data = {
                     "Company": deal_data.get("Deal_Name"),
                     "Industry": deal_data.get("Industry") or analysis.vertical,
@@ -279,33 +285,42 @@ async def get_deal(
                 
                 if marketing_vector_store.is_indexed:
                     try:
+                        logger.info(f"[Deal {deal_id}] Step 6: Searching marketing materials in vector store")
                         marketing_materials = marketing_vector_store.search_for_lead(search_data, top_k=5)
-                        logger.info(f"Found {len(marketing_materials)} relevant marketing materials for deal {deal_id}")
+                        logger.info(f"[Deal {deal_id}] Step 6 done: Found {len(marketing_materials)} marketing material(s)")
                     except Exception as e:
-                        logger.warning(f"Error fetching marketing materials: {e}")
+                        logger.warning(f"[Deal {deal_id}] Step 6 failed: {e}")
                         marketing_materials = []
+                else:
+                    logger.info(f"[Deal {deal_id}] Step 6 done: Vector store not indexed — skipped")
                 
-                # Step 2e: Find similar customers using LLM
+                # Step 7: Find similar customers via LLM
                 try:
-                    # Convert analysis to dict for context
+                    logger.info(f"[Deal {deal_id}] Step 7: Finding similar customers via LLM")
                     analysis_dict = analysis.model_dump() if hasattr(analysis, "model_dump") else analysis.dict()
                     similar_customers = similar_customers_service.find_similar_customers(
                         lead_data=search_data,
                         analysis_data=analysis_dict
                     )
-                    logger.info(f"Found {len(similar_customers)} similar customers for deal {deal_id}")
+                    logger.info(f"[Deal {deal_id}] Step 7 done: Found {len(similar_customers)} similar customer(s)")
                 except Exception as e:
-                    logger.warning(f"Error finding similar customers: {e}")
+                    logger.warning(f"[Deal {deal_id}] Step 7 failed: {e}")
                     similar_customers = []
                 
-                # Step 2f: Cache everything in DynamoDB
+                # Step 8: Cache results in DynamoDB
                 if deal_analysis_cache.is_enabled:
+                    logger.info(f"[Deal {deal_id}] Step 8: Saving results to DynamoDB cache")
                     deal_analysis_cache.save_analysis(
                         deal_id, 
                         analysis, 
                         marketing_materials,
                         similar_customers
                     )
+                    logger.info(f"[Deal {deal_id}] Step 8 done: Cached successfully")
+                else:
+                    logger.info(f"[Deal {deal_id}] Step 8 done: DynamoDB cache disabled — skipped")
+        
+        logger.info(f"[Deal {deal_id}] === END get_deal (analysis_available={analysis_available}, from_cache={from_cache}) ===")
         
         return EnrichedDealResponse(
             data=deal_data,
@@ -319,7 +334,7 @@ async def get_deal(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching deal {deal_id}: {e}")
+        logger.error(f"[Deal {deal_id}] === FAILED get_deal: {e} ===")
         raise HTTPException(status_code=500, detail=str(e))
 
 

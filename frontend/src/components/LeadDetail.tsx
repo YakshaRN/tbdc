@@ -161,14 +161,14 @@ export function LeadDetail({
           {/* Summary Card - Modern redesign */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             {/* Header with gradient */}
-            <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-4">
+            <div className="bg-gradient-to-r from-emerald-50 to-white px-6 py-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-white/20 backdrop-blur">
-                  <Layers className="w-5 h-5 text-white" />
+                  <Layers className="w-5 h-5 text-black" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white text-lg">Company Overview</h3>
-                  <p className="text-emerald-100 text-xs">AI-powered analysis</p>
+                  <h3 className="font-semibold text-black text-lg">Company Overview</h3>
+                  <p className="text-gray-500 text-xs">AI-powered analysis</p>
                 </div>
               </div>
             </div>
@@ -277,7 +277,7 @@ export function LeadDetail({
 
           {/* Key Insights - Show loading or insights */}
           {(isAnalysisLoading || (analysis?.key_insights && analysis.key_insights.length > 0)) && (
-            <DetailCard title="Key Insights" icon={Lightbulb} accentColor="purple">
+            <DetailCard title="Key Insights" icon={Lightbulb}>
               {isAnalysisLoading ? (
                 <ul className="space-y-3">
                   {[...Array(4)].map((_, i) => (

@@ -174,14 +174,14 @@ export function DealDetail({
           {/* Summary Card */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             {/* Header with gradient */}
-            <div className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-6 py-4">
+            <div className="bg-gradient-to-r from-blue-50 to-white px-6 py-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-white/20 backdrop-blur">
-                  <Layers className="w-5 h-5 text-white" />
+                  <Layers className="w-5 h-5 text-black" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white text-lg">Summary</h3>
-                  <p className="text-blue-100 text-xs">AI-powered analysis</p>
+                  <h3 className="font-semibold text-black text-lg">Summary</h3>
+                  <p className="text-black text-xs">AI-powered analysis</p>
                 </div>
               </div>
             </div>
@@ -321,7 +321,7 @@ export function DealDetail({
           </DetailCard>
 
           {/* Marketing Material to share */}
-          <DetailCard title="Marketing Material to Share" icon={Megaphone} accentColor="purple">
+          <DetailCard title="Marketing Material to Share" icon={Megaphone} accentColor="blue">
             <div className="space-y-2">
               {isAnalysisLoading ? (
                 <div className="space-y-2">
@@ -357,7 +357,7 @@ export function DealDetail({
           </DetailCard>
 
           {/* Support Required */}
-          <DetailCard title="Support Required" icon={LifeBuoy} accentColor="purple">
+          <DetailCard title="Support Required" icon={LifeBuoy} accentColor="blue">
             {isAnalysisLoading ? (
               <div className="space-y-3">
                 <div className="h-5 bg-gray-200 rounded w-3/4 skeleton" />
@@ -443,7 +443,7 @@ export function DealDetail({
         {/* Right Column - Scoring Rubric, ICP Mapping */}
         <div className="col-span-5 space-y-6">
           {/* Scoring Rubric */}
-          <DetailCard title="Scoring Rubric" icon={ClipboardList} accentColor="emerald">
+          <DetailCard title="Scoring Rubric" icon={ClipboardList} accentColor="blue">
             {isAnalysisLoading ? (
               <div className="space-y-4">
                 <div>
